@@ -16,6 +16,26 @@ namespace Floppy.App;
 
 public partial class MainWindow
 {
+    [System.Runtime.InteropServices.DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(IntPtr window, int attribute, ref int value, int size);
+
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+        if (!OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000) || SystemParameters.HighContrast) return;
+        var handle = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+        // Native caption controls and resizing stay with Windows; only their colors change.
+        // https://learn.microsoft.com/windows/win32/api/dwmapi/ne-dwmapi-dwmwindowattribute
+        int dark = 1;
+        _ = DwmSetWindowAttribute(handle, 20, ref dark, sizeof(int));
+        foreach (var (attribute, resource) in new[] { (35, "BgTief"), (36, "Text") })
+        {
+            var color = ((SolidColorBrush)FindResource(resource)).Color;
+            int rgb = color.R | (color.G << 8) | (color.B << 16);
+            _ = DwmSetWindowAttribute(handle, attribute, ref rgb, sizeof(int));
+        }
+    }
+
     private readonly Dictionary<string, NumberSend> _numberSends = new();
     private sealed class NumberSend { public double Value; public int Revision; }
 
@@ -109,11 +129,13 @@ public partial class MainWindow
         {
             Content = IsFavorite(option) ? "★" : "☆",
             ToolTip = "Favorit umschalten · Rechtsklick für Tastenkürzel",
-            Style = (Style)FindResource("FlatButton"),
-            Padding = new Thickness(6, 3, 6, 3),
-            Margin = new Thickness(8, 0, 0, 0),
+            Style = (Style)FindResource("GhostButton"),
+            Foreground = (Brush)FindResource(IsFavorite(option) ? "Accent" : "Muted"),
+            Width = 28, Height = 28, Padding = new Thickness(0),
+            Margin = new Thickness(10, -3, -4, 0),
             VerticalAlignment = VerticalAlignment.Top
         };
+        System.Windows.Automation.AutomationProperties.SetName(star, option.Label + " als Favorit markieren");
         star.Click += (_, _) =>
         {
             if (!_settings.Favorites.TryGetValue(_connectedGameId, out var favorites))
@@ -121,6 +143,7 @@ public partial class MainWindow
             if (!favorites.Remove(option.Id)) favorites.Add(option.Id);
             SaveSettings();
             star.Content = IsFavorite(option) ? "★" : "☆";
+            star.Foreground = (Brush)FindResource(IsFavorite(option) ? "Accent" : "Muted");
             RenderCategoryList();
             if (_selectedCategory == RubrikFavoriten) RenderOptions();
         };

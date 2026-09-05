@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
     <AssemblyName>Floppy</AssemblyName>
+    <Version>1.2.0</Version>
     <RootNamespace>Floppy.App</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>floppy.ico</ApplicationIcon>

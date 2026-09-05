@@ -1,7 +1,10 @@
-# Floppy 1.1
+# Floppy 1.2
 
 Floppy ist ein modulares Windows-Modmenü mit Desktop-App und spielabhängigem Ingame-Menü.
 Die Module definieren ihre Optionen einmal; die Oberflächen verwenden das gemeinsame Schema.
+
+Die Desktop-App hat in Version 1.2 eine neue Graphit-Mint-Oberfläche erhalten.
+Details und Prüfergebnisse: [Änderungen 1.2.0](docs/Aenderungen-1.2.0.md).
 
 ## Spiele und Module
 
@@ -79,7 +82,7 @@ dotnet build src/Floppy.App/Floppy.App.csproj -c Release
 dotnet build src/Floppy.App/Floppy.App.csproj -c Release -p:BuildGameModules=false
 
 # Vollständiges eigenständiges Windows-Paket:
-dotnet publish src/Floppy.App/Floppy.App.csproj -c Release -r win-x64 --self-contained true -o artifacts/Floppy-1.1.0-win-x64
+dotnet publish src/Floppy.App/Floppy.App.csproj -c Release -r win-x64 --self-contained true -o artifacts/Floppy-1.2.0-win-x64
 
 # Bauen und How to Fish einrichten – Build erfolgt vor jeder Spieländerung:
 .\deploy.ps1 -GameDir "D:\SteamLibrary\steamapps\common\How to Fish\How to Fish" -App
@@ -103,10 +106,10 @@ dotnet run --project tests/Floppy.Install.Tests -c Release
 python -m unittest discover -s tools -p "test_rauchtest.py"
 
 # Zusätzlich das tatsächliche Publish-Paket auf Vollständigkeit prüfen:
-dotnet run --project tests/Floppy.Install.Tests -c Release -- artifacts/Floppy-1.1.0-win-x64
+dotnet run --project tests/Floppy.Install.Tests -c Release -- artifacts/Floppy-1.2.0-win-x64
 
 # Die ausgelieferte EXE selbst prüfen (ohne Spielzugriff oder sichtbares Fenster):
-.\artifacts\Floppy-1.1.0-win-x64\Floppy.exe --self-test "$env:TEMP\floppy-self-test.txt"
+.\artifacts\Floppy-1.2.0-win-x64\Floppy.exe --self-test "$env:TEMP\floppy-self-test.txt"
 ```
 
 `python tools/rauchtest.py` prüft nur Verbindung und Schema eines laufenden Spiels.

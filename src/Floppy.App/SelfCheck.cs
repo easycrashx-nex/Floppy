@@ -20,14 +20,34 @@ internal static class SelfCheck
             Check(NumberInput.TryParse("1,5", out double number) && number == 1.5, "Dezimalkomma");
             Check(!NumberInput.TryParse("Infinity", out _), "Ungültige Zahl abgewiesen");
             var window = new MainWindow(offline: true);
+            Check(new System.Windows.Interop.WindowInteropHelper(window).EnsureHandle() != IntPtr.Zero,
+                "Windows-Fensterinitialisierung ohne Anzeige");
             var root = (Grid)window.Content;
-            foreach (double width in new[] { 980.0, 1180.0 })
+            foreach (var size in new[] { new Size(980, 560), new Size(1180, 760), new Size(1440, 900), new Size(960, 520) })
             {
-                root.Measure(new Size(width, 760));
-                root.Arrange(new Rect(0, 0, width, 760));
+                root.Measure(size);
+                root.Arrange(new Rect(new Point(), size));
                 root.UpdateLayout();
-                var actions = ((Grid)root.Children[0]).Children.OfType<WrapPanel>().Single();
-                Check(actions.ActualWidth <= width, "WPF-Fensterbreite " + width);
+                Rect Bounds(string name)
+                {
+                    var element = window.FindName(name) as FrameworkElement
+                        ?? throw new InvalidOperationException("WPF-Element fehlt: " + name);
+                    return element.TransformToAncestor(root).TransformBounds(new Rect(0, 0, element.ActualWidth, element.ActualHeight));
+                }
+                string[] regions = { "LibraryPane", "HeaderPanel", "HeaderActions", "SearchBox", "CategoriesPane", "OptionsPane", "SessionBar" };
+                Check(regions.Select(Bounds).All(b => b.Width > 0 && b.Height > 0 && b.Left >= -.5 && b.Top >= -.5
+                    && b.Right <= root.ActualWidth + .5 && b.Bottom <= root.ActualHeight + .5), "WPF-Layout " + size);
+                bool Separate(string a, string b)
+                {
+                    Rect first = Bounds(a), second = Bounds(b);
+                    return first.Right <= second.Left + .5 || second.Right <= first.Left + .5
+                        || first.Bottom <= second.Top + .5 || second.Bottom <= first.Top + .5;
+                }
+                Check(Separate("LibraryPane", "CategoriesPane") && Separate("CategoriesPane", "OptionsPane")
+                    && Separate("HeaderPanel", "OptionsPane") && Separate("HeaderActions", "OptionsPane")
+                    && Separate("SearchBox", "HeaderActions") && Separate("SessionBar", "OptionsPane")
+                    && Separate("LaunchButton", "ConnectButton") && Separate("AllOffButton", "ToolsButton"),
+                    "WPF-Bereiche ohne Überlappung " + size);
             }
             string[] required = {
                 "runtime/mono/plugins/Floppy.Model.dll", "runtime/mono/plugins/Floppy.Unity.Mono.dll",

@@ -721,12 +721,11 @@ public partial class MainWindow : Window
 
     /// <summary>Die Rubrikenleiste.
     ///
-    /// Bei knapp 300 Einträgen war die alte Reiterzeile das Problem: Sie brach über drei
-    /// Zeilen um und man sah nie, wo etwas eingeschaltet ist. Jetzt steht jede Rubrik
-    /// untereinander, mit ihrer Größe - und wenn dort etwas an ist, mit einer zweiten
-    /// Zahl in Grün. Ganz oben "Aktiv": alles Eingeschaltete auf einen Blick.</summary>
+    /// Rubriken zeigen ihre Anzahl; Mint kennzeichnet Bereiche mit aktiven Optionen.
+    /// Favoriten und Aktiv sammeln Funktionen aus allen Rubriken.</summary>
     private void RenderCategoryList()
     {
+        var focusedCategory = CategoryList.Children.OfType<Button>().FirstOrDefault(b => b.IsKeyboardFocusWithin)?.Tag;
         CategoryList.Children.Clear();
         if (_categories.Count == 0) return;
 
@@ -756,89 +755,49 @@ public partial class MainWindow : Window
             CategoryList.Children.Add(BuildCategoryEntry(
                 kategorie.Name, i, treffer, kategorie.Options.Count(IstAn), false));
         }
+        if (focusedCategory is int focused)
+            CategoryList.Children.OfType<Button>().FirstOrDefault(b => Equals(b.Tag, focused))?.Focus();
     }
 
-    private Border BuildCategoryEntry(string name, int index, int anzahl, int aktiv, bool betont)
+    private Button BuildCategoryEntry(string name, int index, int anzahl, int aktiv, bool betont)
     {
-        bool gewaehlt = index == _selectedCategory;
-
-        var zeile = new Grid();
-        zeile.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        zeile.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-        var titel = new TextBlock
+        bool selected = index == _selectedCategory;
+        var line = new Grid();
+        line.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        line.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var title = new TextBlock
         {
-            Text = name,
-            FontSize = 12.5,
-            FontWeight = betont || gewaehlt ? FontWeights.SemiBold : FontWeights.Normal,
-            Foreground = (Brush)FindResource(gewaehlt ? "Text" : "Muted"),
+            Text = name, FontSize = 12.5,
+            FontWeight = selected || betont ? FontWeights.SemiBold : FontWeights.Normal,
+            Foreground = (Brush)FindResource(selected ? "Accent" : "Muted"),
             VerticalAlignment = VerticalAlignment.Center,
-            TextTrimming = TextTrimming.CharacterEllipsis
+            TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 0, 8, 0)
         };
-
-        var zahlen = new StackPanel { Orientation = Orientation.Horizontal };
-
-        if (aktiv > 0)
+        var count = new TextBlock
         {
-            zahlen.Children.Add(new TextBlock
-            {
-                Text = aktiv.ToString(),
-                FontFamily = (FontFamily)FindResource("Mono"),
-                FontSize = 11,
-                Foreground = (Brush)FindResource("Ok"),
-                Margin = new Thickness(0, 0, 7, 0),
-                VerticalAlignment = VerticalAlignment.Center
-            });
-        }
-
-        if (!betont)
-        {
-            zahlen.Children.Add(new TextBlock
-            {
-                Text = anzahl.ToString(),
-                FontFamily = (FontFamily)FindResource("Mono"),
-                FontSize = 11,
-                Foreground = (Brush)FindResource("Muted"),
-                Opacity = 0.7,
-                VerticalAlignment = VerticalAlignment.Center
-            });
-        }
-
-        Grid.SetColumn(titel, 0);
-        Grid.SetColumn(zahlen, 1);
-        zeile.Children.Add(titel);
-        zeile.Children.Add(zahlen);
-
-        var rahmen = new Border
-        {
-            Child = zeile,
-            Padding = new Thickness(10, 7, 10, 7),
-            CornerRadius = new CornerRadius(6),
-            Margin = new Thickness(0, 0, 0, 2),
-            Background = gewaehlt
-                ? (Brush)FindResource("AccentDim")
-                : Brushes.Transparent,
-            Cursor = System.Windows.Input.Cursors.Hand
+            Text = anzahl.ToString(), FontSize = 10.5,
+            FontFamily = (FontFamily)FindResource("Mono"),
+            Foreground = (Brush)FindResource(aktiv > 0 ? "Accent" : "Muted"),
+            VerticalAlignment = VerticalAlignment.Center
         };
-
-        rahmen.MouseEnter += (_, _) =>
+        Grid.SetColumn(count, 1);
+        line.Children.Add(title); line.Children.Add(count);
+        var button = new Button
         {
-            if (!gewaehlt) rahmen.Background = (Brush)FindResource("BgRow");
+            Content = line, Tag = index, Style = (Style)FindResource("GhostButton"),
+            HorizontalContentAlignment = HorizontalAlignment.Stretch,
+            Padding = new Thickness(10, 11, 10, 11), Margin = new Thickness(0, 0, 0, 4),
+            Background = (Brush)FindResource(selected ? "AccentDim" : "Bg"),
+            ToolTip = aktiv > 0 ? $"{anzahl} Funktionen · {aktiv} aktiv" : $"{anzahl} Funktionen"
         };
-
-        rahmen.MouseLeave += (_, _) =>
-        {
-            if (!gewaehlt) rahmen.Background = Brushes.Transparent;
-        };
-
-        rahmen.MouseLeftButtonUp += (_, _) =>
+        System.Windows.Automation.AutomationProperties.SetName(button, name);
+        button.Click += (_, _) =>
         {
             _selectedCategory = index;
             RenderCategoryList();
             RenderOptions();
         };
-
-        return rahmen;
+        return button;
     }
 
     /// <summary>Blendet den Hinweis ein, solange es nichts anzuzeigen gibt - und erklärt,
@@ -850,6 +809,8 @@ public partial class MainWindow : Window
         EmptyHint.Visibility = hasContent ? Visibility.Collapsed : Visibility.Visible;
 
         if (hasContent) return;
+        PaneTitle.Text = "Übersicht";
+        PaneCount.Text = "";
 
         if (_games.Count(g => g.Installed) == 0)
         {
@@ -860,14 +821,12 @@ public partial class MainWindow : Window
         else if (_selectedGame == null)
         {
             EmptyTitle.Text = "Wähle ein Spiel";
-            EmptyBody.Text = "Links stehen die Spiele, für die es Cheats gibt.";
+            EmptyBody.Text = "Wähle links ein Spiel aus deiner Bibliothek. Die passenden Optionen werden nach dem Verbinden geladen.";
         }
         else
         {
-            EmptyTitle.Text = _selectedGame.Name + " ist nicht verbunden";
-            EmptyBody.Text = "Starte das Spiel und warte, bis du im Hauptmenü bist. Die App verbindet " +
-                             "sich dann von selbst. Die Cheatliste kommt aus dem Spiel - deshalb ist " +
-                             "hier bis dahin nichts zu sehen.";
+            EmptyTitle.Text = "Bereit für " + _selectedGame.Name;
+            EmptyBody.Text = "Starte das Spiel und öffne das Hauptmenü. Floppy verbindet sich automatisch und lädt deine verfügbaren Optionen.";
         }
     }
 
@@ -959,7 +918,7 @@ public partial class MainWindow : Window
         {
             OptionsPanel.Children.Add(new TextBlock
             {
-                Text = "Kein Cheat heißt so. Such nach einem Teil des Namens - " +
+                Text = "Keine passende Funktion gefunden. Versuche einen Teil des Namens, etwa " +
                        "\"leben\", \"tempo\", \"gold\".",
                 Style = (Style)FindResource("Hint"),
                 Margin = new Thickness(4, 12, 4, 0)
@@ -972,8 +931,8 @@ public partial class MainWindow : Window
     {
         return new TextBlock
         {
-            Text = name.ToUpperInvariant(),
-            FontSize = 10.5,
+            Text = name,
+            FontSize = 12,
             FontWeight = FontWeights.SemiBold,
             Foreground = (Brush)FindResource("Muted"),
             Margin = new Thickness(4, 12, 0, 6)
@@ -984,27 +943,28 @@ public partial class MainWindow : Window
     /// erzeugt beim Kategoriewechsel eine Welle statt eines harten Umschlags.</summary>
     private static void FadeIn(FrameworkElement element, int index)
     {
-        var shift = new TranslateTransform(0, 8);
+        if (!SystemParameters.ClientAreaAnimation) return;
+        var shift = new TranslateTransform(0, 4);
         element.RenderTransform = shift;
 
         double targetOpacity = element.Opacity;
         element.Opacity = 0;
 
-        var delay = TimeSpan.FromMilliseconds(Math.Min(index, 12) * 22);
+        var delay = TimeSpan.FromMilliseconds(Math.Min(index, 6) * 12);
 
         element.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation
         {
             From = 0,
             To = targetOpacity,
-            Duration = TimeSpan.FromMilliseconds(180),
+            Duration = TimeSpan.FromMilliseconds(140),
             BeginTime = delay
         });
 
         shift.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation
         {
-            From = 8,
+            From = 4,
             To = 0,
-            Duration = TimeSpan.FromMilliseconds(220),
+            Duration = TimeSpan.FromMilliseconds(160),
             BeginTime = delay,
             EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
         });
@@ -1043,13 +1003,20 @@ public partial class MainWindow : Window
         {
             Background = (Brush)FindResource("BgRow"),
             CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(12, 10, 12, 10),
-            Margin = new Thickness(0, 0, 0, 6),
+            BorderThickness = new Thickness(2, 0, 0, 0),
+            BorderBrush = (Brush)FindResource(IstAn(option) ? "AccentDim" : "BgRow"),
+            Padding = new Thickness(14, 14, 14, 14),
+            Margin = new Thickness(0, 0, 0, 8),
             Child = WithOptionTools(option, content)
         };
 
         // Nicht verfügbare Cheats bleiben sichtbar, aber ausgegraut.
-        Register(option, state => { row.Opacity = state.Available ? 1.0 : 0.45; content.IsEnabled = state.Available; });
+        Register(option, state =>
+        {
+            row.Opacity = state.Available ? 1.0 : 0.5;
+            content.IsEnabled = state.Available;
+            row.BorderBrush = (Brush)FindResource(IstAn(state) ? "AccentDim" : "BgRow");
+        });
         row.Opacity = option.Available ? 1.0 : 0.45;
         content.IsEnabled = option.Available;
 
@@ -1099,33 +1066,33 @@ public partial class MainWindow : Window
     };
 
     /// <summary>Reine Anzeige: Bezeichnung links, laufender Wert rechts.</summary>
-    private UIElement BuildInfo(OptionInfo option)
+    private Grid LabeledControl(string text, FrameworkElement control)
     {
-        var panel = new DockPanel();
-
+        var panel = new Grid();
+        panel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        panel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         var label = new TextBlock
         {
-            Text = option.Label,
-            Width = 200,
-            VerticalAlignment = VerticalAlignment.Center,
-            Foreground = (Brush)FindResource("Muted")
+            Text = text, TextWrapping = TextWrapping.Wrap, FontWeight = FontWeights.Medium,
+            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 16, 0)
         };
-
-        var wert = new TextBlock
-        {
-            Text = option.TextValue,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = (Brush)FindResource("Accent"),
-            VerticalAlignment = VerticalAlignment.Center,
-            TextWrapping = TextWrapping.Wrap
-        };
-
-        DockPanel.SetDock(label, Dock.Left);
-        panel.Children.Add(label);
-        panel.Children.Add(wert);
-
-        Register(option, state => wert.Text = state.TextValue);
+        Grid.SetColumn(control, 1);
+        panel.Children.Add(label); panel.Children.Add(control);
+        System.Windows.Automation.AutomationProperties.SetName(control, text);
         return panel;
+    }
+
+    private UIElement BuildInfo(OptionInfo option)
+    {
+        var value = new TextBlock
+        {
+            Text = option.TextValue, FontWeight = FontWeights.SemiBold,
+            Foreground = (Brush)FindResource("Accent"), FontFamily = (FontFamily)FindResource("Mono"),
+            VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap,
+            TextAlignment = TextAlignment.Right
+        };
+        Register(option, state => value.Text = state.TextValue);
+        return LabeledControl(option.Label, value);
     }
 
     private UIElement BuildToggle(OptionInfo option)
@@ -1148,11 +1115,13 @@ public partial class MainWindow : Window
     {
         var button = new Button
         {
-            Content = option.Label,
+            Content = new TextBlock { Text = option.Label, TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center },
             Style = (Style)FindResource("FlatButton"),
             HorizontalAlignment = HorizontalAlignment.Left,
-            MinWidth = 200
+            MinWidth = 140,
+            MaxWidth = 320
         };
+        System.Windows.Automation.AutomationProperties.SetName(button, option.Label);
 
         button.Click += async (_, _) =>
         {
@@ -1169,11 +1138,12 @@ public partial class MainWindow : Window
     private UIElement BuildSlider(OptionInfo option)
     {
         var panel = new Grid();
-        panel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(170) });
+        panel.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        panel.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         panel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        panel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(60) });
+        panel.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        var label = new TextBlock { Text = option.Label, VerticalAlignment = VerticalAlignment.Center };
+        var label = new TextBlock { Text = option.Label, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 16, 0), FontWeight = FontWeights.Medium, VerticalAlignment = VerticalAlignment.Center };
 
         var slider = new Slider
         {
@@ -1186,12 +1156,14 @@ public partial class MainWindow : Window
             SmallChange = option.Step <= 0 ? 0.01 : option.Step,
             LargeChange = (option.Step <= 0 ? 0.01 : option.Step) * 4,
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(8, 0, 8, 0)
+            Margin = new Thickness(0, 10, 0, 2)
         };
+        System.Windows.Automation.AutomationProperties.SetName(slider, option.Label);
 
         var value = new TextBlock
         {
             Text = option.NumberValue.ToString("0.##", CultureInfo.InvariantCulture),
+            FontFamily = (FontFamily)FindResource("Mono"),
             Foreground = (Brush)FindResource("Accent"),
             FontWeight = FontWeights.SemiBold,
             HorizontalAlignment = HorizontalAlignment.Right,
@@ -1210,8 +1182,9 @@ public partial class MainWindow : Window
         };
 
         Grid.SetColumn(label, 0);
-        Grid.SetColumn(slider, 1);
-        Grid.SetColumn(value, 2);
+        Grid.SetRow(slider, 1);
+        Grid.SetColumnSpan(slider, 2);
+        Grid.SetColumn(value, 1);
         panel.Children.Add(label);
         panel.Children.Add(slider);
         panel.Children.Add(value);
@@ -1228,20 +1201,11 @@ public partial class MainWindow : Window
 
     private UIElement BuildNumber(OptionInfo option)
     {
-        var panel = new DockPanel();
-
-        var label = new TextBlock
-        {
-            Text = option.Label,
-            Width = 170,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-
         var box = new TextBox
         {
             Text = option.NumberValue.ToString("0.##", CultureInfo.InvariantCulture),
-            Width = 140,
-            HorizontalAlignment = HorizontalAlignment.Left
+            Width = 110, HorizontalAlignment = HorizontalAlignment.Right,
+            FontFamily = (FontFamily)FindResource("Mono")
         };
 
         async Task Commit()
@@ -1258,10 +1222,6 @@ public partial class MainWindow : Window
         box.LostFocus += async (_, _) => { if (!_suppressEvents) await Commit(); };
         box.KeyDown += async (_, e) => { if (e.Key == Key.Enter && !_suppressEvents) await Commit(); };
 
-        DockPanel.SetDock(label, Dock.Left);
-        panel.Children.Add(label);
-        panel.Children.Add(box);
-
         Register(option, state =>
         {
             box.IsEnabled = state.Available;
@@ -1269,18 +1229,19 @@ public partial class MainWindow : Window
                 box.Text = state.NumberValue.ToString("0.##", CultureInfo.InvariantCulture);
         });
 
-        return panel;
+        return LabeledControl(option.Label, box);
     }
 
     private UIElement BuildText(OptionInfo option)
     {
-        var panel = new DockPanel();
+        var panel = new StackPanel();
+        var input = new DockPanel();
 
         var label = new TextBlock
         {
             Text = option.Label,
-            Width = 120,
-            VerticalAlignment = VerticalAlignment.Center
+            TextWrapping = TextWrapping.Wrap, FontWeight = FontWeights.Medium,
+            Margin = new Thickness(0, 0, 0, 10)
         };
 
         var run = new Button
@@ -1310,11 +1271,10 @@ public partial class MainWindow : Window
         run.Click += async (_, _) => await Send();
         box.KeyDown += async (_, e) => { if (e.Key == Key.Enter) await Send(); };
 
-        DockPanel.SetDock(label, Dock.Left);
         DockPanel.SetDock(run, Dock.Right);
-        panel.Children.Add(label);
-        panel.Children.Add(run);
-        panel.Children.Add(box);
+        input.Children.Add(run); input.Children.Add(box);
+        panel.Children.Add(label); panel.Children.Add(input);
+        System.Windows.Automation.AutomationProperties.SetName(box, option.Label);
 
         Register(option, state =>
         {
@@ -1327,23 +1287,13 @@ public partial class MainWindow : Window
 
     private UIElement BuildChoice(OptionInfo option)
     {
-        var panel = new DockPanel();
-
-        var label = new TextBlock
-        {
-            Text = option.Label,
-            Width = 170,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-
         var combo = new ComboBox
         {
             ItemsSource = option.Choices,
             SelectedIndex = option.Choices.Length == 0
                 ? -1
                 : Math.Clamp(option.ChoiceIndex, 0, option.Choices.Length - 1),
-            MinWidth = 220,
-            HorizontalAlignment = HorizontalAlignment.Left
+            HorizontalAlignment = HorizontalAlignment.Stretch
         };
 
         combo.SelectionChanged += async (_, _) =>
@@ -1352,10 +1302,6 @@ public partial class MainWindow : Window
             Merke(option);
             ReportIfFailed(await _ipc.SetChoiceAsync(option.Id, combo.SelectedIndex));
         };
-
-        DockPanel.SetDock(label, Dock.Left);
-        panel.Children.Add(label);
-        panel.Children.Add(combo);
 
         Register(option, state =>
         {
@@ -1369,7 +1315,7 @@ public partial class MainWindow : Window
                 combo.SelectedIndex = Math.Clamp(state.ChoiceIndex, 0, combo.Items.Count - 1);
         });
 
-        return panel;
+        return LabeledControl(option.Label, combo);
     }
 
     private void Register(OptionInfo option, Action<OptionInfo> refresh)
