@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
@@ -22,10 +23,13 @@ namespace Floppy.Core
         private static readonly HashSet<TcpClient> _clients = new HashSet<TcpClient>();
         private static int _generation;
         private static string _sessionId = "";
+        private static readonly Stopwatch _clock = Stopwatch.StartNew();
+        private static readonly int _processId = Process.GetCurrentProcess().Id;
+        private static OverlayLease _overlayLease;
         public static int ConnectedClients { get { lock (_lifecycle) return _clients.Count; } }
         public static int ListeningPort { get; private set; }
 
-        public static void Start(int port = Port)
+        public static void Start(int port = Port, bool externalOverlay = false, Action<bool> overlayChanged = null)
         {
             lock (_lifecycle)
             {
@@ -42,6 +46,22 @@ namespace Floppy.Core
                 _listener = listener;
                 ListeningPort = ((IPEndPoint)listener.LocalEndpoint).Port;
                 _sessionId = Guid.NewGuid().ToString("N");
+                IGameModule lockedModule = null;
+                _overlayLease = externalOverlay ? new OverlayLease(open =>
+                {
+                    if (open)
+                    {
+                        lockedModule = Registry.Module;
+                        // Capture the cursor before the module changes it.
+                        overlayChanged?.Invoke(true);
+                        lockedModule?.SetMenuOpen(true);
+                    }
+                    else
+                    {
+                        try { lockedModule?.SetMenuOpen(false); }
+                        finally { lockedModule = null; overlayChanged?.Invoke(false); }
+                    }
+                }, () => _clock.ElapsedMilliseconds) : null;
                 int generation = ++_generation;
                 _running = true;
                 _acceptThread = new Thread(() => AcceptLoop(listener, generation)) { IsBackground = true, Name = "Floppy-IPC" };
@@ -54,6 +74,7 @@ namespace Floppy.Core
         {
             TcpListener listener;
             TcpClient[] clients;
+            OverlayLease lease;
             lock (_lifecycle)
             {
                 _running = false;
@@ -64,7 +85,11 @@ namespace Floppy.Core
                 clients = new TcpClient[_clients.Count];
                 _clients.CopyTo(clients);
                 _clients.Clear();
+                lease = _overlayLease;
+                _overlayLease = null;
             }
+            // Stop may be called off-thread. Unity runners drain this on shutdown.
+            if (lease != null) Dispatcher.Enqueue(lease.Close);
             try { listener?.Stop(); } catch { }
             foreach (var client in clients) try { client.Dispose(); } catch { }
         }
@@ -83,12 +108,13 @@ namespace Floppy.Core
                     if (!Current(generation)) { client.Dispose(); return; }
                     _clients.Add(client);
                 }
-                var thread = new Thread(() => HandleClient(client, generation)) { IsBackground = true };
+                var lease = _overlayLease;
+                var thread = new Thread(() => HandleClient(client, generation, lease)) { IsBackground = true };
                 thread.Start();
             }
         }
 
-        private static void HandleClient(TcpClient client, int generation)
+        private static void HandleClient(TcpClient client, int generation, OverlayLease lease)
         {
             try
             {
@@ -102,7 +128,7 @@ namespace Floppy.Core
                     {
                         if (line.Length == 0) continue;
                         string response;
-                        try { response = Handle(line, generation); }
+                        try { response = Handle(line, generation, client); }
                         catch (Exception ex) { response = Error(ex.Message); }
                         writer.WriteLine(response);
                     }
@@ -110,10 +136,14 @@ namespace Floppy.Core
             }
             catch (IOException) { /* Verbindung weg - normal */ }
             catch (Exception ex) { Log.Warning("IPC-Client abgebrochen: " + ex.Message); }
-            finally { lock (_lifecycle) _clients.Remove(client); }
+            finally
+            {
+                lock (_lifecycle) _clients.Remove(client);
+                if (lease != null) Dispatcher.Enqueue(() => lease.Release(client));
+            }
         }
 
-        private static string Handle(string json, int generation)
+        private static string Handle(string json, int generation, TcpClient client)
         {
             var request = Json.Parse(json);
             string cmd = Json.AlsText(request, "cmd") ?? "";
@@ -128,6 +158,9 @@ namespace Floppy.Core
 
                 case "state":
                     return Dispatch(BuildState, generation);
+
+                case "overlay":
+                    return Dispatch(() => ApplyOverlay(request, client, generation), generation);
 
                 case "set":
                     return Dispatch(() => ApplySet(request), generation);
@@ -150,6 +183,30 @@ namespace Floppy.Core
         }
 
         // --- Alles ab hier läuft im Mainthread des Spiels ---
+
+        /// <summary>Call each Unity frame, including while the desktop app has focus.</summary>
+        public static void TickOverlay()
+        {
+            try { _overlayLease?.Tick(); }
+            catch (Exception ex) { Log.Error("Overlay-Eingabesicherung: " + ex.Message); }
+        }
+
+        private static string ApplyOverlay(Dictionary<string, object> request, TcpClient client, int generation)
+        {
+            if (!request.TryGetValue("open", out var value) || !(value is bool))
+                return Error("overlay.open muss ein boolescher Wert sein");
+            if (Json.AlsText(request, "sessionId") != _sessionId)
+                return Error("Overlay-Anfrage gehört nicht zur aktuellen Sitzung");
+            lock (_lifecycle)
+            {
+                if (!Current(generation) || !_clients.Contains(client))
+                    return Error("Overlay-Verbindung wurde beendet");
+                if (_overlayLease == null) return Error("Dieses Backend unterstützt kein externes Overlay");
+                _overlayLease.Apply(client, (bool)value);
+                return new Json.Writer().Set("ok", true).Set("sessionId", _sessionId)
+                    .Set("overlayOpen", _overlayLease.IsOpen).Set("leaseMs", OverlayLease.DurationMs).ToString();
+            }
+        }
 
         private static string BuildSchema()
         {
@@ -239,6 +296,8 @@ namespace Floppy.Core
             bool ready = Registry.Ready(out status);
             w.Set("ready", ready).Set("status", status)
                 .Set("gameId", Registry.Module?.ProductName ?? "")
+                .Set("processId", _processId).Set("externalOverlay", _overlayLease != null)
+                .Set("overlayOpen", _overlayLease?.IsOpen ?? false)
                 .Set("sessionId", _sessionId).Set("schemaVersion", Registry.SchemaVersion);
         }
 

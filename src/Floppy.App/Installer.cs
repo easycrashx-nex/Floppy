@@ -15,6 +15,7 @@ public static class Installer
     private static string RuntimeDir => Path.Combine(AppContext.BaseDirectory, "runtime");
     private const string StateFolder = ".floppy";
     private const string StateFile = "installation.json";
+    private const string CurrentVersion = "1.3.0";
     public enum Ausfuehrung { Mono, IL2CPP, Fremd }
     private sealed record Game(string Id, string Runtime, string? Module);
     public sealed class SavedFile
@@ -24,11 +25,12 @@ public static class Installer
         public string Hash { get; set; } = "";
         public long Length { get; set; }
         public long LastWriteUtcTicks { get; set; }
+        public bool Removed { get; set; }
     }
     public sealed class InstallState
     {
         public string Game { get; set; } = "";
-        public string Version { get; set; } = "1.1.0";
+        public string Version { get; set; } = CurrentVersion;
         public List<SavedFile> Files { get; set; } = new();
     }
 
@@ -88,14 +90,15 @@ public static class Installer
             var game = Identify(installDir, productName);
             if (game.Runtime == "external") return true;
             var state = LoadState(installDir);
-            if (state == null || state.Game != game.Id || state.Version != "1.1.0") return false;
+            if (state == null || state.Game != game.Id || state.Version != CurrentVersion) return false;
             // PCK files can be large; hash them only during installation/restoration/diagnosis.
             if (game.Runtime == "pitt")
             {
                 var saved = state.Files.Find(f => f.Path == "projectpitt.pck");
                 var package = new FileInfo(Path.Combine(installDir, "projectpitt.pck"));
                 return saved != null && package.Exists && package.Length == saved.Length &&
-                    package.LastWriteTimeUtc.Ticks == saved.LastWriteUtcTicks;
+                    package.LastWriteTimeUtc.Ticks == saved.LastWriteUtcTicks &&
+                    state.Files.Where(f => IsLegacyPittOverlay(f.Path)).All(f => f.Removed && !File.Exists(Inside(installDir, f.Path)));
             }
             return LoaderFiles(game).All(f => File.Exists(Inside(installDir, f))) &&
                 PluginFiles(game).All(f =>
@@ -142,7 +145,7 @@ public static class Installer
         {
             if (!Directory.Exists(installDir)) return "Spielordner nicht gefunden: " + installDir;
             var game = Identify(installDir, productName);
-            var lines = new List<string> { "Spiel: " + game.Id, "Ordner: " + Path.GetFullPath(installDir), "Floppy: 1.1.0" };
+            var lines = new List<string> { "Spiel: " + game.Id, "Ordner: " + Path.GetFullPath(installDir), "Floppy: " + CurrentVersion };
             if (game.Runtime == "external") { lines.Add("Externer Adapter: keine Plugin-Installation nötig."); return string.Join(Environment.NewLine, lines); }
             var state = LoadState(installDir);
             if (state == null) lines.Add("Keine von Floppy verwaltete Installation. Einrichten/Reparieren legt Sicherungen an.");
@@ -150,7 +153,11 @@ public static class Installer
             {
                 lines.Add("Gesicherte Installation: " + state.Game + " " + state.Version);
                 foreach (var file in state.Files)
-                    if (!File.Exists(Inside(installDir, file.Path))) lines.Add("Fehlt: " + file.Path);
+                    if (file.Removed)
+                    {
+                        if (File.Exists(Inside(installDir, file.Path))) lines.Add("Entfernte Altdatei erneut vorhanden: " + file.Path);
+                    }
+                    else if (!File.Exists(Inside(installDir, file.Path))) lines.Add("Fehlt: " + file.Path);
                     else if (Hash(Inside(installDir, file.Path)) != file.Hash) lines.Add("Seit Installation geändert: " + file.Path);
             }
             if (game.Runtime != "pitt")
@@ -175,7 +182,7 @@ public static class Installer
             if (game.Runtime is "mono" or "il2cpp" && !Directory.Exists(Path.Combine(installDir, game.Id + "_Data")))
                 throw new IOException("Der ausgewählte Ordner gehört nicht zu " + game.Id + ": " + game.Id + "_Data fehlt.");
             Directory.CreateDirectory(staging);
-            var plan = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var plan = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
             var state = LoadState(installDir) ?? new InstallState { Game = game.Id };
             if (state.Game != game.Id) throw new IOException("In diesem Ordner ist ein anderes Floppy-Spiel registriert.");
             if (game.Runtime == "pitt")
@@ -187,6 +194,15 @@ public static class Installer
                     throw new IOException("Spielpaket wurde seit der Installation geändert. Erst Wiederherstellen wählen (geänderte Dateien bleiben erhalten), danach neu einrichten.");
                 GodotPck.Patch(original, patched, Path.Combine(RuntimeDir, "pitt"));
                 plan.Add("projectpitt.pck", patched);
+                // Only remove loose files owned by an earlier Floppy installation.
+                // A manually changed file remains untouched and is reported first.
+                foreach (var legacy in state.Files.Where(f => IsLegacyPittOverlay(f.Path)))
+                {
+                    string path = Inside(installDir, legacy.Path);
+                    if (File.Exists(path) && (legacy.Removed || Hash(path) != legacy.Hash))
+                        throw new IOException("Altes Menüskript wurde inzwischen geändert: " + legacy.Path + ". Erst Wiederherstellen wählen; geänderte Dateien bleiben erhalten.");
+                    plan.Add(legacy.Path, null);
+                }
             }
             else
             {
@@ -219,7 +235,7 @@ public static class Installer
         finally { CleanTemp(staging); }
     }
 
-    private static void Apply(string directory, Dictionary<string, string> plan, InstallState state, string staging)
+    private static void Apply(string directory, Dictionary<string, string?> plan, InstallState state, string staging)
     {
         // Snapshot everything before the first replacement; an I/O failure rolls back this attempt.
         string stateDir = Inside(directory, StateFolder);
@@ -253,19 +269,24 @@ public static class Installer
                         File.Copy(previous[pair.Key]!, backup, overwrite: true);
                     }
                 }
-                file.Hash = Hash(pair.Value);
-                var sourceInfo = new FileInfo(pair.Value);
-                file.Length = sourceInfo.Length;
-                file.LastWriteUtcTicks = sourceInfo.LastWriteTimeUtc.Ticks;
+                file.Removed = pair.Value == null;
+                file.Hash = pair.Value == null ? "" : Hash(pair.Value);
+                var sourceInfo = pair.Value == null ? null : new FileInfo(pair.Value);
+                file.Length = sourceInfo?.Length ?? 0;
+                file.LastWriteUtcTicks = sourceInfo?.LastWriteTimeUtc.Ticks ?? 0;
             }
             // Persist recovery information first: an interrupted install can still be restored.
-            state.Version = "1.1.0";
+            state.Version = CurrentVersion;
             WriteState(manifest, state);
             foreach (var pair in plan)
             {
                 string target = Inside(directory, pair.Key);
                 Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-                ReplaceFile(pair.Value, target);
+                if (pair.Value == null)
+                {
+                    if (File.Exists(target)) File.Delete(target);
+                }
+                else ReplaceFile(pair.Value, target);
                 touched.Add(pair.Key);
             }
         }
@@ -296,7 +317,7 @@ public static class Installer
             foreach (var file in state.Files)
             {
                 string target = Inside(installDir, file.Path);
-                if (File.Exists(target) && Hash(target) != file.Hash) { preserved++; continue; }
+                if (File.Exists(target) && (file.Removed || Hash(target) != file.Hash)) { preserved++; continue; }
                 if (file.Existed && !File.Exists(Inside(stateDir, "original/" + file.Path)))
                     throw new IOException("Sicherung fehlt: " + file.Path);
                 restore.Add(file);
@@ -353,6 +374,8 @@ public static class Installer
             throw new InvalidDataException("Doppelte Einträge in Installationsdaten.");
         return state;
     }
+    private static bool IsLegacyPittOverlay(string path) => Path.GetFileName(path) is
+        "floppy_overlay.gd" or "floppy_overlay.gdc" or "floppy_overlay.gd.remap" or "floppy_overlay.gd.uid";
     private static void WriteState(string path, InstallState state)
     {
         File.WriteAllText(path + ".tmp", JsonSerializer.Serialize(state, new JsonSerializerOptions { WriteIndented = true }));

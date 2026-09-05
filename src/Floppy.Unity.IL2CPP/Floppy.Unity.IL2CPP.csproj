@@ -22,21 +22,6 @@
       <HintPath>$(OddcoreInterop)\UnityEngine.CoreModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
-    <Reference Include="UnityEngine.IMGUIModule">
-      <HintPath>$(OddcoreInterop)\UnityEngine.IMGUIModule.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="UnityEngine.InputLegacyModule">
-      <HintPath>$(OddcoreInterop)\UnityEngine.InputLegacyModule.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-
-    <!-- TextAnchor liegt bei IL2CPP in einem eigenen Modul, bei Mono steckt es im Kern -->
-    <Reference Include="UnityEngine.TextRenderingModule">
-      <HintPath>$(OddcoreInterop)\UnityEngine.TextRenderingModule.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-
     <!-- Die Basisklassen der Laufzeit - ohne sie kennt der Übersetzer Il2CppSystem.Object nicht -->
     <Reference Include="Il2Cppmscorlib">
       <HintPath>$(OddcoreInterop)\Il2Cppmscorlib.dll</HintPath>
@@ -45,7 +30,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Include="..\Shared\Menu\*.cs" LinkBase="Menu" />
+    <Compile Include="..\Shared\ExternalOverlay.cs" Link="ExternalOverlay.cs" />
   </ItemGroup>
 </Project>
 

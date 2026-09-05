@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using Floppy.App;
 
 string root = Path.Combine(Path.GetTempPath(), "floppy-install-tests-" + Guid.NewGuid().ToString("N"));
@@ -123,10 +124,63 @@ try
         Assert(BitConverter.ToInt32(once, 16) == 2, "engine patch version changed");
         Assert(Encoding.UTF8.GetString(once).Contains("original payload"), "original contents lost");
         Assert(Encoding.UTF8.GetString(once).Contains("autoload/Floppy"), "autoload absent");
+        Assert(!Encoding.UTF8.GetString(once).Contains("floppy_overlay"), "obsolete menu script present");
         Assert(Installer.Einrichten(dir, out message, "Project P.I.T.T."), message);
         Assert(File.ReadAllBytes(pck).SequenceEqual(once), "second install differs");
         Assert(Installer.Wiederherstellen(dir, out message), message);
         Assert(File.ReadAllBytes(pck).SequenceEqual(original), "PCK not exactly restored");
+    });
+    Run("Pitt upgrade removes old embedded and owned loose menus while retaining original backups", () =>
+    {
+        string dir = InstallDir("pitt-upgrade");
+        var original = PrepareLegacyPitt(dir, originalLoose: "previous loose file");
+        string pck = Path.Combine(dir, "projectpitt.pck");
+        Assert(!Installer.Bereit(dir, "Project P.I.T.T."), "old backend accepted as current");
+        Assert(Installer.Einrichten(dir, out string message, "Project P.I.T.T."), message);
+        Assert(Installer.Bereit(dir, "Project P.I.T.T."), "new backend not ready");
+        string package = Encoding.UTF8.GetString(File.ReadAllBytes(pck));
+        Assert(!package.Contains("floppy_overlay") && !package.Contains("autoload/FloppyOverlay"), "old embedded menu remains");
+        Assert(!File.Exists(Path.Combine(dir, "floppy_overlay.gd")), "owned loose menu remains");
+        Assert(File.ReadAllBytes(Path.Combine(dir, ".floppy/original/projectpitt.pck")).SequenceEqual(original), "original package backup overwritten");
+        Assert(!Installer.Diagnose(dir, "Project P.I.T.T.").Contains("Fehlt:"), "removed menu incorrectly diagnosed as missing");
+        Assert(Installer.Einrichten(dir, out message, "Project P.I.T.T."), message);
+        Assert(Installer.Wiederherstellen(dir, out message), message);
+        Assert(File.ReadAllBytes(pck).SequenceEqual(original), "upgrade lost original package");
+        Assert(File.ReadAllText(Path.Combine(dir, "floppy_overlay.gd")) == "previous loose file", "upgrade lost original loose file");
+    });
+    Run("Locked legacy menu rolls back package and old manifest", () =>
+    {
+        string dir = InstallDir("pitt-locked-upgrade");
+        PrepareLegacyPitt(dir);
+        string pck = Path.Combine(dir, "projectpitt.pck");
+        string manifest = Path.Combine(dir, ".floppy/installation.json");
+        byte[] before = File.ReadAllBytes(pck);
+        string state = File.ReadAllText(manifest);
+        using var locked = new FileStream(Path.Combine(dir, "floppy_overlay.gd"), FileMode.Open, FileAccess.Read, FileShare.Read);
+        Assert(!Installer.Einrichten(dir, out _, "Project P.I.T.T."), "locked obsolete menu accepted");
+        Assert(File.ReadAllBytes(pck).SequenceEqual(before), "package not rolled back");
+        Assert(File.ReadAllText(manifest) == state, "old manifest not recovered");
+    });
+    Run("Modified legacy menu aborts upgrade before changing the package", () =>
+    {
+        string dir = InstallDir("pitt-modified-upgrade");
+        PrepareLegacyPitt(dir);
+        string pck = Path.Combine(dir, "projectpitt.pck");
+        byte[] before = File.ReadAllBytes(pck);
+        File.WriteAllText(Path.Combine(dir, "floppy_overlay.gd"), "modified independently");
+        Assert(!Installer.Einrichten(dir, out _, "Project P.I.T.T."), "modified obsolete file deleted");
+        Assert(File.ReadAllBytes(pck).SequenceEqual(before), "package changed before preflight failure");
+        Assert(File.ReadAllText(Path.Combine(dir, "floppy_overlay.gd")) == "modified independently", "modified loose file lost");
+    });
+    Run("Restore preserves a new file at the removed menu path", () =>
+    {
+        string dir = InstallDir("pitt-recreated-menu");
+        PrepareLegacyPitt(dir);
+        Assert(Installer.Einrichten(dir, out string message, "Project P.I.T.T."), message);
+        File.WriteAllText(Path.Combine(dir, "floppy_overlay.gd"), "new independent file");
+        Assert(!Installer.Bereit(dir, "Project P.I.T.T."), "recreated legacy path accepted");
+        Assert(Installer.Wiederherstellen(dir, out message), message);
+        Assert(File.ReadAllText(Path.Combine(dir, "floppy_overlay.gd")) == "new independent file", "new file overwritten during restore");
     });
     Run("Unsupported PCK fails without mutation", () =>
     {
@@ -187,8 +241,9 @@ try
         {
             foreach (string file in new[] { "Floppy.exe", "runtime/mono/plugins/Floppy.Model.dll", "runtime/mono/plugins/Floppy.Unity.Mono.dll",
                 "runtime/mono/plugins/Floppy.HowToFish.dll", "runtime/mono/plugins/Floppy.Stonewards.dll", "runtime/il2cpp/plugins/Floppy.Model.dll",
-                "runtime/il2cpp/plugins/Floppy.Unity.IL2CPP.dll", "runtime/il2cpp/plugins/Floppy.Oddcore.dll", "runtime/pitt/floppy.gd", "runtime/pitt/floppy_overlay.gd" })
+                "runtime/il2cpp/plugins/Floppy.Unity.IL2CPP.dll", "runtime/il2cpp/plugins/Floppy.Oddcore.dll", "runtime/pitt/floppy.gd" })
                 Assert(File.Exists(Path.Combine(args[0], file)), "published file missing: " + file);
+            Assert(!File.Exists(Path.Combine(args[0], "runtime/pitt/floppy_overlay.gd")), "obsolete Pitt menu is still published");
             foreach (string engine in new[] { "mono", "il2cpp" })
                 Assert(Directory.EnumerateFiles(Path.Combine(args[0], "runtime", engine), "BepInEx-*.zip").Count() == 1, "loader archive absent or ambiguous");
         });
@@ -223,21 +278,60 @@ void MakeRuntime()
     }
     Directory.CreateDirectory(Path.Combine(runtime, "pitt"));
     File.WriteAllText(Path.Combine(runtime, "pitt/floppy.gd"), "extends Node\n");
-    File.WriteAllText(Path.Combine(runtime, "pitt/floppy_overlay.gd"), "extends CanvasLayer\n");
+    string oldOverlay = Path.Combine(runtime, "pitt/floppy_overlay.gd");
+    if (File.Exists(oldOverlay)) File.Delete(oldOverlay);
 }
-void MakePck(string path)
+byte[] PrepareLegacyPitt(string dir, string? originalLoose = null)
+{
+    string pck = Path.Combine(dir, "projectpitt.pck");
+    MakePck(pck);
+    byte[] original = File.ReadAllBytes(pck);
+    string backups = Path.Combine(dir, ".floppy/original");
+    Directory.CreateDirectory(backups);
+    File.Copy(pck, Path.Combine(backups, "projectpitt.pck"));
+    MakePck(pck, legacy: true);
+    string overlay = Path.Combine(dir, "floppy_overlay.gd");
+    File.WriteAllText(overlay, "extends CanvasLayer\n# old installed menu");
+    if (originalLoose != null) File.WriteAllText(Path.Combine(backups, "floppy_overlay.gd"), originalLoose);
+    var state = new Installer.InstallState { Game = "Project P.I.T.T.", Version = "1.1.0" };
+    state.Files.Add(Snapshot(pck, "projectpitt.pck", existed: true));
+    state.Files.Add(Snapshot(overlay, "floppy_overlay.gd", existed: originalLoose != null));
+    File.WriteAllText(Path.Combine(dir, ".floppy/installation.json"), JsonSerializer.Serialize(state));
+    return original;
+}
+Installer.SavedFile Snapshot(string path, string relative, bool existed) => new()
+{
+    Path = relative, Existed = existed, Hash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))),
+    Length = new FileInfo(path).Length, LastWriteUtcTicks = File.GetLastWriteTimeUtc(path).Ticks
+};
+void MakePck(string path, bool legacy = false)
 {
     using var stream = File.Create(path);
     using var writer = new BinaryWriter(stream);
     writer.Write(Encoding.ASCII.GetBytes("GDPC"));
     writer.Write(4); writer.Write(4); writer.Write(7); writer.Write(2); writer.Write(2);
     writer.Write((ulong)112); writer.Write((ulong)0); writer.Write(new byte[72]);
-    var files = new[] { ("res://project.binary", Encoding.ASCII.GetBytes("ECFG\0\0\0\0")), ("res://keep.bin", Encoding.UTF8.GetBytes("original payload")) };
+    byte[] settings = Encoding.ASCII.GetBytes("ECFG\0\0\0\0");
+    if (legacy)
+    {
+        using var config = new MemoryStream();
+        using var configWriter = new BinaryWriter(config, Encoding.UTF8, leaveOpen: true);
+        configWriter.Write(Encoding.ASCII.GetBytes("ECFG")); configWriter.Write(1);
+        byte[] key = Encoding.UTF8.GetBytes("autoload/FloppyOverlay");
+        byte[] value = Encoding.UTF8.GetBytes("*res://floppy_overlay.gd");
+        configWriter.Write(key.Length); configWriter.Write(key);
+        configWriter.Write(value.Length); configWriter.Write(value);
+        settings = config.ToArray();
+    }
+    var files = new List<(string, byte[])> { ("res://project.binary", settings), ("res://keep.bin", Encoding.UTF8.GetBytes("original payload")) };
+    if (legacy)
+        foreach (string name in new[] { "res://floppy_overlay.gd", "floppy_overlay.gd", "res://floppy_overlay.gdc", "res://floppy_overlay.gd.remap", "res://floppy_overlay.gd.uid" })
+            files.Add((name, Encoding.UTF8.GetBytes("old menu payload")));
     var offsets = new List<long>();
     foreach (var (_, content) in files) { offsets.Add(stream.Position - 112); writer.Write(content); while (stream.Position % 16 != 0) writer.Write((byte)0); }
     long index = stream.Position;
-    writer.Write(files.Length);
-    for (int i = 0; i < files.Length; i++)
+    writer.Write(files.Count);
+    for (int i = 0; i < files.Count; i++)
     {
         byte[] name = Encoding.UTF8.GetBytes(files[i].Item1);
         int length = (name.Length + 3) / 4 * 4;

@@ -242,7 +242,7 @@ namespace Floppy.Core
         /// <summary>Die Rubrik, die jedes Spiel automatisch dazubekommt.
         ///
         /// Sie wird aus denselben Bausteinen gebaut wie die Cheats selbst - dadurch
-        /// erscheint sie ohne weiteres Zutun sowohl im Ingame-Menü als auch im Client.</summary>
+        /// erscheint sie ohne weiteres Zutun in Desktop und externem Overlay.</summary>
         public static CheatCategory BaueRubrik()
         {
             var kategorie = new CheatCategory("Profile");

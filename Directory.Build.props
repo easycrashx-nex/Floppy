@@ -1,4 +1,4 @@
-﻿<Project>
+<Project>
   <PropertyGroup>
     <!-- Overrides: -p:GameDir=... or Directory.Build.local.props (not committed). -->
     <GameDir Condition="'$(GameDir)' == ''">D:\SteamLibrary\steamapps\common\How to Fish\How to Fish</GameDir>
@@ -17,7 +17,7 @@
     <RootNamespace>$(MSBuildProjectName)</RootNamespace>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <DebugType>embedded</DebugType>
-    <Version>1.1.0</Version>
+    <Version>1.3.0</Version>
     <EnableDefaultCompileItems>true</EnableDefaultCompileItems>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <NoWarn>$(NoWarn);CS0649;CS0169;MSB3277</NoWarn>

@@ -6,5 +6,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/Floppy.Model/Floppy.Model.csproj" />
+    <Compile Include="../../src/Shared/ExternalOverlay.cs" Link="ExternalOverlay.cs" />
   </ItemGroup>
 </Project>

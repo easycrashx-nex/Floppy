@@ -10,10 +10,11 @@ extends Node
 # 127.0.0.1:47821. Dadurch funktioniert die Floppy-Desktop-App hier unverändert,
 # obwohl eine völlig andere Engine darunter liegt.
 #
-# Ein Ingame-Menü gibt es noch nicht - Unitys Zeichensystem existiert hier nicht,
-# das müsste in Godots eigenem UI neu gebaut werden.
+# Das Menü zeichnet ausschließlich die Desktop-App. Dieses Backend gibt ihr nur
+# vorübergehend die Eingabe frei; der Fenstermodus des Spiels bleibt unverändert.
 
 const PORT := 47821
+const OVERLAY_LEASE_MS := 3000
 const BERICHT := "user://floppy_bericht.txt"
 
 ## Was sich herbeirufen lässt, nach Rubriken sortiert.
@@ -117,7 +118,12 @@ var _produktfaktor := 1.0
 var _produktwert_basis := {}
 var _letzter_faktor := 1.0
 var _produktuhr := 0.0
-var _overlay: CanvasLayer
+var _session_id := "%d-%s-%d" % [OS.get_process_id(), str(Time.get_unix_time_from_system()), Time.get_ticks_usec()]
+var _overlay_owner: StreamPeerTCP
+var _overlay_until := 0
+var _mouse_before := Input.MOUSE_MODE_VISIBLE
+var _paused_by_us := false
+var _input_before: Array[Dictionary] = []
 
 var _cheats: Array = []               # Liste von Cheat-Beschreibungen
 var _nach_id: Dictionary = {}
@@ -132,14 +138,6 @@ func _ready() -> void:
 
 	_baue_cheats()
 
-	# Das Ingame-Menü liegt in einer eigenen Datei - das Zeichnen hat mit dem
-	# Protokoll nichts zu tun, und getrennt bleibt beides lesbar.
-	var vorlage := load("res://floppy_overlay.gd")
-	if vorlage != null:
-		_overlay = vorlage.new()
-		_overlay.baue(self)
-		add_child(_overlay)
-
 	_server = TCPServer.new()
 	var fehler := _server.listen(PORT, "127.0.0.1")
 	if fehler == OK:
@@ -149,6 +147,9 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	_check_overlay_lease()
+	if _overlay_owner != null:
+		_hold_overlay_input()
 	# Der Faktor auf die Produktwerte muss nachgehalten werden: Beim Rundenstart setzt
 	# das Spiel die Werte neu, und unser Aufschlag wäre sonst weg.
 	if _produktfaktor != 1.0:
@@ -178,6 +179,8 @@ func _process(delta: float) -> void:
 			_verarbeite(c)
 
 	for c in weg:
+		if c == _overlay_owner:
+			_release_overlay()
 		_clients.erase(c)
 		_puffer.erase(c)
 
@@ -195,13 +198,13 @@ func _verarbeite(c: StreamPeerTCP) -> void:
 		if zeile.is_empty():
 			continue
 
-		var antwort := _behandle(zeile)
+		var antwort := _behandle(zeile, c)
 		c.put_data((antwort + "\n").to_utf8_buffer())
 
 
 # ---------------------------------------------------------------- Protokoll
 
-func _behandle(zeile: String) -> String:
+func _behandle(zeile: String, client: StreamPeerTCP) -> String:
 	var anfrage = JSON.parse_string(zeile)
 	if typeof(anfrage) != TYPE_DICTIONARY:
 		return _fehler("Anfrage nicht lesbar")
@@ -213,6 +216,8 @@ func _behandle(zeile: String) -> String:
 			return _schema()
 		"state":
 			return _zustand()
+		"overlay":
+			return _set_overlay(anfrage, client)
 		"set":
 			return _setzen(anfrage)
 		"invoke":
@@ -246,6 +251,12 @@ func _schema() -> String:
 	return JSON.stringify({
 		"ok": true,
 		"game": "Project P.I.T.T.",
+		"gameId": "Project P.I.T.T.",
+		"sessionId": _session_id,
+		"schemaVersion": 1,
+		"processId": OS.get_process_id(),
+		"externalOverlay": true,
+		"overlayOpen": _overlay_owner != null,
 		"categories": kategorien,
 		"ready": bereit,
 		"status": "Bereit" if bereit else "Warte auf Spielstart",
@@ -257,10 +268,105 @@ func _zustand() -> String:
 	var bereit := _im_spiel()
 	return JSON.stringify({
 		"ok": true,
+		"gameId": "Project P.I.T.T.",
+		"sessionId": _session_id,
+		"schemaVersion": 1,
+		"processId": OS.get_process_id(),
+		"externalOverlay": true,
+		"overlayOpen": _overlay_owner != null,
 		"ready": bereit,
 		"status": "Bereit" if bereit else "Warte auf Spielstart",
 		"values": _werte(),
 	})
+
+
+# ---------------------------------------------------------------- Externes Menü: befristete Eingabefreigabe
+
+func _set_overlay(request: Dictionary, client: StreamPeerTCP) -> String:
+	_check_overlay_lease()
+	if typeof(request.get("sessionId")) != TYPE_STRING or request["sessionId"] != _session_id:
+		return _fehler("Overlay-Anfrage gehört nicht zur aktuellen Spielsitzung")
+	if typeof(request.get("open")) != TYPE_BOOL:
+		return _fehler("Overlay benötigt open als booleschen Wert")
+	if client == null or client.get_status() != StreamPeerTCP.STATUS_CONNECTED:
+		return _fehler("Overlay benötigt eine aktive Verbindung")
+	if _overlay_owner != null and _overlay_owner != client:
+		return _fehler("Overlay wird bereits von einer anderen Verbindung bedient")
+	if request["open"]:
+		if _overlay_owner == null:
+			_mouse_before = Input.get_mouse_mode()
+			_overlay_owner = client
+		_overlay_until = Time.get_ticks_msec() + OVERLAY_LEASE_MS
+		_hold_overlay_input()
+	else:
+		_release_overlay()
+	return JSON.stringify({"ok": true, "overlayOpen": _overlay_owner != null,
+		"sessionId": _session_id, "leaseMs": OVERLAY_LEASE_MS})
+
+
+func _check_overlay_lease() -> void:
+	if _overlay_owner != null and Time.get_ticks_msec() >= _overlay_until:
+		_release_overlay()
+
+
+func _hold_overlay_input() -> void:
+	# Das Spiel darf während der Bedienung weder laufen noch die Maus erneut fangen.
+	# Eine vorhandene Pause bleibt erhalten; nur eigene Änderungen werden rückgängig.
+	if _im_spiel() and not get_tree().paused:
+		get_tree().paused = true
+		_paused_by_us = true
+	_remember_input_flag(get_node_or_null("/root/MenuManager"), "game_paused")
+	_remember_input_flag(get_tree().get_first_node_in_group("player"), "movement_blocked")
+	if Input.get_mouse_mode() != Input.MOUSE_MODE_VISIBLE:
+		Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+
+
+func _remember_input_flag(node: Node, property: String) -> void:
+	if not is_instance_valid(node):
+		return
+	for saved in _input_before:
+		if saved["node"].get_ref() == node and saved["property"] == property:
+			node.set(property, true)
+			return
+	# Prüfen statt unbekannte Eigenschaften auf fremden Spielknoten zu erzeugen.
+	for entry in node.get_property_list():
+		if entry["name"] == property and entry["type"] == TYPE_BOOL:
+			if node.get(property) == false:
+				_input_before.append({"node": weakref(node), "property": property, "value": false})
+				node.set(property, true)
+			return
+
+
+func _release_overlay() -> void:
+	if _overlay_owner == null:
+		return
+	_overlay_owner = null
+	_overlay_until = 0
+	for saved in _input_before:
+		var node = saved["node"].get_ref()
+		if is_instance_valid(node) and node.get(saved["property"]) == true:
+			node.set(saved["property"], saved["value"])
+	_input_before.clear()
+	if _paused_by_us:
+		get_tree().paused = false
+		_paused_by_us = false
+	if Input.get_mouse_mode() == Input.MOUSE_MODE_VISIBLE:
+		Input.set_mouse_mode(_mouse_before)
+
+
+func _input(_event: InputEvent) -> void:
+	if _overlay_owner != null:
+		get_viewport().set_input_as_handled()
+
+
+func _exit_tree() -> void:
+	_release_overlay()
+	for client in _clients:
+		client.disconnect_from_host()
+	_clients.clear()
+	_puffer.clear()
+	if _server != null:
+		_server.stop()
 
 
 func _werte() -> Dictionary:
@@ -574,27 +680,6 @@ func _alles_hoch(feld: String) -> String:
 			geaendert += _stufe_hoch(d[schluessel])
 
 	return "%d Stufen angehoben" % geaendert
-
-
-# ---------------------------------------------------------------- Für das Menü
-
-func kategorien() -> Array:
-	return _kategorien
-
-
-func im_spiel() -> bool:
-	return _im_spiel()
-
-
-func auswahl_index(id: String) -> int:
-	return int(_auswahl.get(id, 0))
-
-
-func setze_auswahl(id: String, index: int) -> void:
-	_auswahl[id] = index
-	var c: Dictionary = _nach_id.get(id, {})
-	if c.has("gewaehlt"):
-		c["gewaehlt"].call(index)
 
 
 # ---------------------------------------------------------------- Herbeirufen

@@ -97,6 +97,7 @@ public partial class MainWindow
     {
         IntPtr foreground = GetForegroundWindow();
         if (foreground == new WindowInteropHelper(this).Handle) return true;
+        if (_gameWindow?.Valid() == true && GameForeground(_gameWindow)) return true;
         var game = _games.FirstOrDefault(g => g.ProductName == _connectedGameId);
         if (game?.InstallDir is not string directory) return false;
         try

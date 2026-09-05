@@ -28,6 +28,9 @@ internal static class Program
             RegistryTests();
             await DispatcherTests();
             await IpcTests();
+            OverlayLeaseTests();
+            ExternalCursorTests();
+            await OverlayIpcTests();
             Console.WriteLine("PASS: " + _assertions + " assertions; only fake modules, temporary profiles and an ephemeral loopback port.");
             return 0;
         }
@@ -295,6 +298,126 @@ internal static class Program
         lock (queue) return queue.Count;
     }
 
+    private static void OverlayLeaseTests()
+    {
+        long now = 0;
+        var transitions = new List<bool>();
+        var lease = new OverlayLease(transitions.Add, () => now);
+        var first = new object();
+        var second = new object();
+        lease.Apply(first, true);
+        Check(lease.IsOpen && transitions.SequenceEqual(new[] { true }), "overlay acquires input lock once");
+        now = 2900;
+        lease.Apply(first, true);
+        Check(transitions.Count == 1, "overlay heartbeat does not recapture cursor/input state");
+        Reject(() => lease.Apply(second, true), "overlay takeover by another connection");
+        Reject(() => lease.Apply(second, false), "overlay close by another connection");
+        now = 5899;
+        lease.Tick();
+        Check(lease.IsOpen, "renewed overlay lease stays active before deadline");
+        now = 5900;
+        lease.Tick();
+        Check(!lease.IsOpen && transitions.SequenceEqual(new[] { true, false }), "overlay lease releases exactly at deadline");
+        lease.Apply(second, true);
+        lease.Release(first);
+        Check(lease.IsOpen, "stale disconnect cannot release new owner");
+        lease.Release(second);
+        lease.Apply(first, false);
+        Check(!lease.IsOpen && transitions.Count == 4, "owner disconnect releases and idle close is idempotent");
+        lease.Apply(first, true);
+        lease.Close();
+        lease.Close();
+        Check(!lease.IsOpen && transitions.Count == 6, "stop releases overlay exactly once");
+        Reject(() => lease.Apply(null, true), "missing overlay owner");
+        bool restored = false;
+        var failed = new OverlayLease(open => { if (open) throw new InvalidOperationException("fixture lock failure"); restored = true; }, () => now);
+        Reject(() => failed.Apply(first, true), "failed input lock");
+        Check(!failed.IsOpen && restored, "failed input lock attempts restoration and drops lease");
+    }
+
+    private static async Task OverlayIpcTests()
+    {
+        var module = Setup();
+        var cursorTransitions = new List<bool>();
+        IpcServer.Start(0, externalOverlay: true, overlayChanged: cursorTransitions.Add);
+        using var owner = new TcpClient();
+        await owner.ConnectAsync("127.0.0.1", IpcServer.ListeningPort);
+        using var reader = new StreamReader(owner.GetStream(), Encoding.UTF8);
+        using var writer = new StreamWriter(owner.GetStream(), new UTF8Encoding(false)) { AutoFlush = true };
+        var schema = await Request(reader, writer, "{\"cmd\":\"schema\"}");
+        string session = (string)schema["sessionId"];
+        Check((double)schema["processId"] == Environment.ProcessId && (bool)schema["externalOverlay"] && !(bool)schema["overlayOpen"],
+            "overlay schema reports actual server process and capability");
+        string Command(bool open, string identity) => new Json.Writer().Set("cmd", "overlay").Set("open", open).Set("sessionId", identity).ToString();
+        var response = await Request(reader, writer, Command(true, "old-session"));
+        Check(!(bool)response["ok"] && !module.MenuOpen, "overlay rejects stale session before input lock");
+        response = await Request(reader, writer, "{\"cmd\":\"overlay\",\"open\":true}");
+        Check(!(bool)response["ok"] && !module.MenuOpen, "overlay requires explicit session identity");
+        response = await Request(reader, writer, new Json.Writer().Set("cmd", "overlay").Set("open", "true").Set("sessionId", session).ToString());
+        Check(!(bool)response["ok"] && !module.MenuOpen, "overlay rejects non-boolean open");
+        response = await Request(reader, writer, Command(true, session));
+        Check((bool)response["ok"] && (bool)response["overlayOpen"] && (double)response["leaseMs"] == 3000 && module.MenuOpen,
+            "overlay command acquires module input lock with lease acknowledgement");
+        await Request(reader, writer, Command(true, session));
+        Check(module.MenuChanges == 1 && cursorTransitions.SequenceEqual(new[] { true }), "IPC heartbeat preserves initial input and cursor snapshot");
+        using var other = new TcpClient();
+        await other.ConnectAsync("127.0.0.1", IpcServer.ListeningPort);
+        using var otherReader = new StreamReader(other.GetStream(), Encoding.UTF8);
+        using var otherWriter = new StreamWriter(other.GetStream(), new UTF8Encoding(false)) { AutoFlush = true };
+        response = await Request(otherReader, otherWriter, Command(false, session));
+        Check(!(bool)response["ok"] && module.MenuOpen, "IPC non-owner cannot close overlay");
+        response = await Request(otherReader, otherWriter, Command(true, session));
+        Check(!(bool)response["ok"] && module.MenuOpen, "IPC non-owner cannot renew overlay");
+        owner.Dispose();
+        await Until(() => !module.MenuOpen, Dispatcher.Pump);
+        Check(cursorTransitions.SequenceEqual(new[] { true, false }), "owner disconnect restores cursor and input on dispatcher");
+        response = await Request(otherReader, otherWriter, Command(true, session));
+        Check((bool)response["ok"] && module.MenuOpen, "new connection can acquire after owner disconnect");
+        await Until(() => !module.MenuOpen, IpcServer.TickOverlay);
+        Check(cursorTransitions.SequenceEqual(new[] { true, false, true, false }), "Unity frame lease tick restores lock after missing heartbeat");
+        await Request(otherReader, otherWriter, Command(true, session));
+        IpcServer.Stop();
+        Dispatcher.Pump();
+        Check(!module.MenuOpen && cursorTransitions.Count == 6 && !cursorTransitions.Last(), "server stop releases active input and cursor lease");
+        IpcServer.Start(0);
+        using var unsupported = new TcpClient();
+        await unsupported.ConnectAsync("127.0.0.1", IpcServer.ListeningPort);
+        using var unsupportedReader = new StreamReader(unsupported.GetStream(), Encoding.UTF8);
+        using var unsupportedWriter = new StreamWriter(unsupported.GetStream(), new UTF8Encoding(false)) { AutoFlush = true };
+        schema = await Request(unsupportedReader, unsupportedWriter, "{\"cmd\":\"schema\"}");
+        response = await Request(unsupportedReader, unsupportedWriter, Command(true, (string)schema["sessionId"]));
+        Check(!(bool)schema["externalOverlay"] && !(bool)response["ok"], "non-Unity hosts do not advertise unsupported external overlay locks");
+        IpcServer.Stop();
+        Dispatcher.Pump();
+    }
+
+    private static void ExternalCursorTests()
+    {
+        UnityEngine.Application.runInBackground = false;
+        UnityEngine.Cursor.visible = false;
+        UnityEngine.Cursor.lockState = UnityEngine.CursorLockMode.Locked;
+        var overlay = new ExternalOverlay();
+        Check(UnityEngine.Application.runInBackground, "external overlay enables Unity IPC updates without focus");
+        overlay.SetOpen(true);
+        Check(UnityEngine.Cursor.visible && UnityEngine.Cursor.lockState == UnityEngine.CursorLockMode.None, "external overlay releases and shows cursor");
+        overlay.SetOpen(true);
+        UnityEngine.Cursor.visible = false;
+        UnityEngine.Cursor.lockState = UnityEngine.CursorLockMode.Confined;
+        UnityEngine.Application.runInBackground = false;
+        overlay.Tick();
+        Check(UnityEngine.Cursor.visible && UnityEngine.Cursor.lockState == UnityEngine.CursorLockMode.None && UnityEngine.Application.runInBackground,
+            "external overlay maintains cursor and background updates against game changes");
+        overlay.SetOpen(false);
+        Check(!UnityEngine.Cursor.visible && UnityEngine.Cursor.lockState == UnityEngine.CursorLockMode.Locked, "closing overlay restores cursor snapshot taken before first open");
+        overlay.SetOpen(true);
+        overlay.Dispose();
+        Check(!UnityEngine.Cursor.visible && UnityEngine.Cursor.lockState == UnityEngine.CursorLockMode.Locked && !UnityEngine.Application.runInBackground,
+            "plugin disposal restores cursor and prior runInBackground setting");
+        overlay.Tick();
+        overlay.SetOpen(true);
+        Check(!UnityEngine.Cursor.visible && !UnityEngine.Application.runInBackground, "disposed overlay cannot recapture cursor or background setting");
+    }
+
     private static async Task<Dictionary<string, object>> Request(StreamReader reader, StreamWriter writer, string request)
     {
         await writer.WriteLineAsync(request);
@@ -319,11 +442,13 @@ internal static class Program
     private sealed class Fixture : IGameModule
     {
         internal List<CheatOption> Options;
+        internal bool MenuOpen;
+        internal int MenuChanges;
         public string ProductName => "fixture";
         public string DisplayName => "Fixture";
         public void Initialize() { }
         public void Update() { }
-        public void SetMenuOpen(bool open) { }
+        public void SetMenuOpen(bool open) { MenuOpen = open; MenuChanges++; }
         public bool IsReady(out string status) { status = "fixture"; return true; }
         public List<CheatCategory> BuildCategories() => new List<CheatCategory> { new CheatCategory("Fixture") { Options = Options } };
     }

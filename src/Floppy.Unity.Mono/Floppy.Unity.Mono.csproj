@@ -14,8 +14,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Das Overlay ist für Mono und IL2CPP identisch - derselbe Quellcode,
-         nur zweimal übersetzt. -->
-    <Compile Include="..\Shared\Menu\*.cs" LinkBase="Menu" />
+    <Compile Include="..\Shared\ExternalOverlay.cs" Link="ExternalOverlay.cs" />
   </ItemGroup>
 </Project>

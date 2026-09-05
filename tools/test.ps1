@@ -1,7 +1,7 @@
 param([string]$Package)
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
-foreach ($suite in 'Model', 'App', 'Host', 'Ui', 'Install') {
+foreach ($suite in 'Model', 'App', 'Host', 'Ui', 'Overlay', 'Overlay.Ui', 'Install') {
     Write-Host "Prüfe Floppy.$suite..."
     $project = Join-Path $projectRoot "tests\Floppy.$suite.Tests\Floppy.$suite.Tests.csproj"
     $arguments = @('run', '--project', $project, '-c', 'Release', '-p:BuildGameModules=false')

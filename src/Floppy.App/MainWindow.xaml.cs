@@ -331,6 +331,7 @@ public partial class MainWindow : Window
 
     private void Disconnect()
     {
+        if (_imOverlay) _ = OverlayVerlassenAsync(returnFocus: false, desktop: true);
         // Der Takt laeuft weiter - er haelt die Statuszeile aktuell und verbindet
         // von selbst neu, sobald das Spiel wieder da ist.
         _ipc.Disconnect();
@@ -339,6 +340,9 @@ public partial class MainWindow : Window
         _connectedGameId = "";
         _schemaVersion = 0;
         _sessionId = "";
+        _remoteOverlay = false;
+        _serverProcessId = 0;
+        UpdateOverlayTarget();
         ConnectButton.Content = "Verbinden";
         GameLabel.Text = "nicht verbunden";
         SetStatus("getrennt", warn: true);
@@ -384,8 +388,15 @@ public partial class MainWindow : Window
             ?? _games.FirstOrDefault(g => g.ProductName == GameLabel.Text || g.Name == GameLabel.Text)?.ProductName
             ?? GameLabel.Text;
         string session = response["sessionId"]?.GetValue<string>() ?? _connectedGameId;
-        if (_sessionId != session) _angefasst.Clear();
+        if (_sessionId != session)
+        {
+            if (_imOverlay) await OverlayVerlassenAsync(returnFocus: false, desktop: true);
+            if (generation != _ipc.Generation || _closing || _closed) return;
+            _angefasst.Clear();
+        }
         _sessionId = session;
+        _serverProcessId = response["processId"]?.GetValue<int>() ?? 0;
+        _remoteOverlay = response["externalOverlay"]?.GetValue<bool>() ?? false;
         _schemaVersion = response["schemaVersion"]?.GetValue<int>() ?? 0;
 
         _categories = ParseCategories(response["categories"] as JsonArray);
@@ -413,6 +424,7 @@ public partial class MainWindow : Window
         RenderOptions();
         UpdateEmptyHint();
         RegisterShortcuts();
+        UpdateOverlayTarget();
     }
 
     private static List<CategoryInfo> ParseCategories(JsonArray? array)
@@ -464,6 +476,7 @@ public partial class MainWindow : Window
         TasteNachfuehren();
         if (_ipc.Connected)
         {
+            UpdateOverlayTarget();
             RefreshShortcutFocus();
             await RefreshStateAsync();
             return;

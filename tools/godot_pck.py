@@ -24,6 +24,13 @@ KOPF_GROESSE = 112          # Datenbeginn im Originalpaket
 FLAG_RELATIV = 2            # Offsets zählen ab Datenbeginn
 
 
+def ist_altes_floppy_menue(name):
+    return name.removeprefix('res://') in {
+        'floppy_overlay.gd', 'floppy_overlay.gdc',
+        'floppy_overlay.gd.remap', 'floppy_overlay.gd.uid',
+    }
+
+
 class Eintrag:
     def __init__(self, name, offset, groesse, md5, flags):
         self.name = name
@@ -125,16 +132,16 @@ def schreibe_paket(ziel, quelle, format_version, basis, eintraege, ersetzungen, 
     for name, inhalt in zusaetze:
         daten.append((name, inhalt, 0))
 
+    with open(quelle, 'rb') as f:
+        kopf = bytearray(f.read(KOPF_GROESSE))
+    if len(kopf) != KOPF_GROESSE or kopf[:4] != b'GDPC':
+        raise ValueError('unvollständiger Godot-Paketkopf')
+    struct.pack_into('<Q', kopf, 24, KOPF_GROESSE)
+    platz_verzeichnis = 32
+    struct.pack_into('<Q', kopf, platz_verzeichnis, 0)
     with open(ziel, 'wb') as f:
-        # Kopf zunächst mit Platzhaltern
-        f.write(b'GDPC')
-        f.write(struct.pack('<i', format_version))
-        f.write(struct.pack('<iii', 4, 7, 1))
-        f.write(struct.pack('<I', FLAG_RELATIV))
-        f.write(struct.pack('<Q', KOPF_GROESSE))
-        platz_verzeichnis = f.tell()
-        f.write(struct.pack('<Q', 0))
-        f.write(b'\0' * (KOPF_GROESSE - f.tell()))
+        # Engine version and reserved fields belong to the game, not this tool.
+        f.write(kopf)
 
         # Daten
         offsets = []
@@ -183,12 +190,19 @@ def befehl_inject(pck, res_name, quelldatei, autoload_name, weitere=()):
     Dateien, die mit ins Paket sollen, aber keinen Autostart bekommen."""
     fv, basis, eintraege = lies_paket(pck)
 
+    # Floppy's menu now runs in the desktop app. Keep this optional preparation
+    # tool consistent with the installer when upgrading a previously patched PCK.
+    if autoload_name == 'Floppy':
+        eintraege = [e for e in eintraege if not ist_altes_floppy_menue(e.name)]
+
     # Projekteinstellungen holen und Autostart ergänzen
     projekt = next(e for e in eintraege if e.name.endswith('project.binary'))
     paare = lies_einstellungen(lies_datei(pck, basis, projekt))
 
     schluessel = 'autoload/' + autoload_name
     paare = [(k, v) for k, v in paare if k != schluessel]
+    if autoload_name == 'Floppy':
+        paare = [(k, v) for k, v in paare if k != 'autoload/FloppyOverlay']
     paare.append((schluessel, variant_string('*' + res_name)))
 
     neu_projekt = schreibe_einstellungen(paare)
@@ -202,6 +216,8 @@ def befehl_inject(pck, res_name, quelldatei, autoload_name, weitere=()):
 
     dateien = [(res_name, skript)]
     for i in range(0, len(weitere) - 1, 2):
+        if autoload_name == 'Floppy' and ist_altes_floppy_menue(weitere[i]):
+            raise ValueError('Das Floppy-Menü wird ausschließlich von der Desktop-App angezeigt.')
         with open(weitere[i + 1], 'rb') as f:
             dateien.append((weitere[i], f.read()))
 

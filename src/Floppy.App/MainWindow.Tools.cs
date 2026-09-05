@@ -89,6 +89,7 @@ public partial class MainWindow
         e.Cancel = true;
         if (_closing) return;
         _closing = true;
+        StopOverlay();
         IsEnabled = false;
         _poll.Stop();
         // Ein laufender Dateiaustausch muss seine Transaktion abschließen können.
@@ -102,7 +103,7 @@ public partial class MainWindow
             _settings.Left = bounds.Left; _settings.Top = bounds.Top;
             _settings.Width = bounds.Width; _settings.Height = bounds.Height;
         }
-        _settings.Maximized = (_imOverlay ? _zustandVorher : WindowState) == WindowState.Maximized;
+        _settings.Maximized = (_imOverlay || WindowState == WindowState.Minimized ? _zustandVorher : WindowState) == WindowState.Maximized;
         SaveSettings();
         try
         {
@@ -192,6 +193,9 @@ public partial class MainWindow
         text.AppendLine("Letzte Antwort: " + (_ipc.LastResponse?.ToString("HH:mm:ss") ?? "noch keine"));
         text.AppendLine("Letzter Verbindungsfehler: " + (string.IsNullOrEmpty(_ipc.LastError) ? "keiner" : _ipc.LastError));
         text.AppendLine("Schema: " + _schemaVersion);
+        text.AppendLine("Overlay: " + (OverlaySupported ? "extern · Fenster/randloses Vollbild" : "Spielmodul aktualisieren"));
+        text.AppendLine("Backend-Prozess: " + _serverProcessId);
+        text.AppendLine("Spielfenster: " + (_gameWindow?.ProcessId.ToString() ?? "nicht erreichbar"));
         if (_selectedGame?.InstallDir is string directory)
         { text.AppendLine(); text.AppendLine(Installer.Diagnose(directory, _selectedGame.ProductName)); }
         if (_settings.Shortcuts.TryGetValue(_connectedGameId, out var shortcuts) && shortcuts.Count > 0)

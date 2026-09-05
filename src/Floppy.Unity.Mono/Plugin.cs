@@ -1,30 +1,25 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
 using BepInEx;
-using BepInEx.Configuration;
 using BepInEx.Logging;
 using BepInEx.Unity.Mono;
 using Floppy.Core.Api;
-using Floppy.Core.Menu;
 using HarmonyLib;
 using UnityEngine;
 
 namespace Floppy.Core
 {
-    [BepInPlugin("dev.easycrashx.crashbox", "Floppy", "1.1.0")]
+    [BepInPlugin("dev.easycrashx.crashbox", "Floppy", "1.3.0")]
     public class Plugin : BaseUnityPlugin
     {
         public static Plugin Instance { get; private set; }
         public static ManualLogSource Log { get; private set; }
         public static Harmony Harmony { get; private set; }
 
-        public static ConfigEntry<KeyCode> ToggleKey;
-        public static ConfigEntry<bool> EnableRemoteApp;
-
-        private Overlay _overlay;
+        private ExternalOverlay _externalOverlay;
 
         private void Awake()
         {
@@ -38,20 +33,14 @@ namespace Floppy.Core
             Core.Log.OnError = Logger.LogError;
             Harmony = new Harmony("dev.easycrashx.crashbox");
 
-            ToggleKey = Config.Bind("Bedienung", "Menü-Taste", KeyCode.F1,
-                "Taste, die das Overlay im Spiel öffnet und schließt.");
-
-            EnableRemoteApp = Config.Bind("Bedienung", "Externe App erlauben", true,
-                "Lässt die Floppy-Desktop-App sich lokal verbinden (127.0.0.1:" + IpcServer.Port + ").");
-
-            _overlay = new Overlay();
+            _externalOverlay = new ExternalOverlay();
 
             LoadModules();
 
-            if (EnableRemoteApp.Value)
-                IpcServer.Start();
+            // External control is the only menu; old disabled-IPC settings no longer apply.
+            IpcServer.Start(externalOverlay: true, overlayChanged: _externalOverlay.SetOpen);
 
-            Log.LogInfo("Floppy bereit. Menü mit " + ToggleKey.Value + " öffnen.");
+            Log.LogInfo("Floppy bereit. Bedienung über die externe Desktop-App.");
         }
 
         /// <summary>Sucht neben der Core-DLL nach Spielmodulen und nimmt das, dessen
@@ -112,9 +101,7 @@ namespace Floppy.Core
         {
             // Arbeit der externen App einsammeln, solange wir sicher im Mainthread sind.
             Dispatcher.Pump();
-
-            if (Input.GetKeyDown(ToggleKey.Value))
-                _overlay.Visible = !_overlay.Visible;
+            IpcServer.TickOverlay();
 
             if (Registry.Module != null)
             {
@@ -123,14 +110,13 @@ namespace Floppy.Core
             }
         }
 
-        private void OnGUI()
-        {
-            _overlay.Draw();
-        }
+        private void LateUpdate() => _externalOverlay?.Tick();
 
         private void OnDestroy()
         {
             IpcServer.Stop();
+            Dispatcher.Pump();
+            _externalOverlay?.Dispose();
             Harmony?.UnpatchSelf();
         }
     }

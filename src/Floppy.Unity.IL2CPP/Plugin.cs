@@ -4,10 +4,8 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using BepInEx;
-using BepInEx.Configuration;
 using BepInEx.Unity.IL2CPP;
 using Floppy.Core.Api;
-using Floppy.Core.Menu;
 using HarmonyLib;
 using Il2CppInterop.Runtime.Injection;
 using UnityEngine;
@@ -17,19 +15,19 @@ namespace Floppy.Core
     /// <summary>Floppy für IL2CPP-Spiele.
     ///
     /// Der Unterschied zur Mono-Ausführung liegt nur im Gerüst: dort erbt das Plugin von
-    /// einem MonoBehaviour und bekommt Update und OnGUI geschenkt. Hier gibt es das nicht -
+    /// einem MonoBehaviour und bekommt Update geschenkt. Hier gibt es das nicht -
     /// die Laufzeit kennt unsere .NET-Klassen gar nicht. Deshalb melden wir eine eigene
     /// Komponente bei IL2CPP an und hängen sie an ein Objekt in der Szene.
     ///
-    /// Menü, Cheat-Modell und Fernsteuerung sind identisch - derselbe Quellcode.</summary>
-    [BepInPlugin("dev.easycrashx.floppy", "Floppy", "1.1.0")]
+    /// Modell und Fernsteuerung sind identisch - derselbe Quellcode.</summary>
+    [BepInPlugin("dev.easycrashx.floppy", "Floppy", "1.3.0")]
     public class Plugin : BasePlugin
     {
         public static Plugin Instance { get; private set; }
         public static Harmony Harmony { get; private set; }
 
-        public static ConfigEntry<KeyCode> ToggleKey;
-        public static ConfigEntry<bool> EnableRemoteApp;
+        private ExternalOverlay _externalOverlay;
+        private GameObject _runnerObject;
 
         public override void Load()
         {
@@ -42,27 +40,23 @@ namespace Floppy.Core
             Core.Log.OnWarning = Log.LogWarning;
             Core.Log.OnError = Log.LogError;
 
-            ToggleKey = Config.Bind("Bedienung", "Menue-Taste", KeyCode.F1,
-                "Taste, die das Overlay im Spiel öffnet und schließt.");
-
-            EnableRemoteApp = Config.Bind("Bedienung", "Externe App erlauben", true,
-                "Lässt die Floppy-Desktop-App sich lokal verbinden (127.0.0.1:" + IpcServer.Port + ").");
+            _externalOverlay = new ExternalOverlay();
 
             LoadModules();
 
-            if (EnableRemoteApp.Value)
-                IpcServer.Start();
+            // External control is the only menu; old disabled-IPC settings no longer apply.
+            IpcServer.Start(externalOverlay: true, overlayChanged: _externalOverlay.SetOpen);
 
             // Eigene Komponente bei der Laufzeit anmelden und in die Szene hängen -
-            // erst dadurch bekommen wir überhaupt Update und OnGUI.
+            // erst dadurch bekommen wir überhaupt Update.
             ClassInjector.RegisterTypeInIl2Cpp<FloppyRunner>();
 
-            var traeger = new GameObject("Floppy");
-            UnityEngine.Object.DontDestroyOnLoad(traeger);
-            traeger.hideFlags = HideFlags.HideAndDontSave;
-            traeger.AddComponent<FloppyRunner>();
+            _runnerObject = new GameObject("Floppy");
+            UnityEngine.Object.DontDestroyOnLoad(_runnerObject);
+            _runnerObject.hideFlags = HideFlags.HideAndDontSave;
+            _runnerObject.AddComponent<FloppyRunner>();
 
-            Core.Log.Info("Floppy bereit. Menü mit " + ToggleKey.Value + " öffnen.");
+            Core.Log.Info("Floppy bereit. Bedienung über die externe Desktop-App.");
         }
 
         /// <summary>Sucht neben der Plugin-DLL nach Spielmodulen und nimmt das, dessen
@@ -123,26 +117,34 @@ namespace Floppy.Core
         public override bool Unload()
         {
             IpcServer.Stop();
+            Dispatcher.Pump();
+            _externalOverlay?.Dispose();
+            if (_runnerObject != null) UnityEngine.Object.Destroy(_runnerObject);
             Harmony?.UnpatchSelf();
             return true;
         }
+
+        internal void TickExternalOverlay() => _externalOverlay?.Tick();
+
+        internal void ShutdownRunner()
+        {
+            IpcServer.Stop();
+            Dispatcher.Pump();
+            _externalOverlay?.Dispose();
+        }
     }
 
-    /// <summary>Der Träger für Update und OnGUI. IL2CPP-Komponenten brauchen diesen
+    /// <summary>Der Träger für Update. IL2CPP-Komponenten brauchen diesen
     /// Zeiger-Konstruktor, sonst kann die Laufzeit sie nicht erzeugen.</summary>
     public class FloppyRunner : MonoBehaviour
     {
         public FloppyRunner(IntPtr handle) : base(handle) { }
 
-        private readonly Overlay _overlay = new Overlay();
-
         private void Update()
         {
             // Arbeit der externen App einsammeln, solange wir sicher im Mainthread sind.
             Dispatcher.Pump();
-
-            if (Input.GetKeyDown(Plugin.ToggleKey.Value))
-                _overlay.Visible = !_overlay.Visible;
+            IpcServer.TickOverlay();
 
             if (Registry.Module != null)
             {
@@ -151,10 +153,7 @@ namespace Floppy.Core
             }
         }
 
-        private void OnGUI()
-        {
-            Menu.SelfTest.Draw();
-            _overlay.Draw();
-        }
+        private void LateUpdate() => Plugin.Instance?.TickExternalOverlay();
+        private void OnDestroy() => Plugin.Instance?.ShutdownRunner();
     }
 }

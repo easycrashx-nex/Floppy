@@ -49,7 +49,7 @@ namespace Floppy.Core
 
             // Profile bekommt jedes Spiel automatisch dazu - die Rubrik besteht aus
             // denselben Bausteinen wie die Cheats und erscheint dadurch von selbst
-            // im Ingame-Menü und im Client.
+            // in Desktop und externem Overlay.
             categories = new List<CheatCategory>(categories) { Profile.BaueRubrik() };
             var byId = new Dictionary<string, CheatOption>(StringComparer.OrdinalIgnoreCase);
             foreach (var option in categories.SelectMany(c => c.Options))

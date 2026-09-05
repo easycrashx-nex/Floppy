@@ -53,9 +53,11 @@ internal static class SelfCheck
                 "runtime/mono/plugins/Floppy.Model.dll", "runtime/mono/plugins/Floppy.Unity.Mono.dll",
                 "runtime/mono/plugins/Floppy.HowToFish.dll", "runtime/mono/plugins/Floppy.Stonewards.dll",
                 "runtime/il2cpp/plugins/Floppy.Model.dll", "runtime/il2cpp/plugins/Floppy.Unity.IL2CPP.dll",
-                "runtime/il2cpp/plugins/Floppy.Oddcore.dll", "runtime/pitt/floppy.gd", "runtime/pitt/floppy_overlay.gd"
+                "runtime/il2cpp/plugins/Floppy.Oddcore.dll", "runtime/pitt/floppy.gd"
             };
             foreach (string path in required) Check(File.Exists(Path.Combine(AppContext.BaseDirectory, path)), path);
+            Check(!File.Exists(Path.Combine(AppContext.BaseDirectory, "runtime/pitt/floppy_overlay.gd")),
+                "Kein altes P.I.T.T.-Menü im Paket");
             foreach (string kind in new[] { "mono", "il2cpp" })
             {
                 string path = Path.Combine(AppContext.BaseDirectory, "runtime", kind);

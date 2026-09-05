@@ -16,10 +16,12 @@ internal static class GodotPck
     public static void Patch(string source, string destination, string scripts)
     {
         byte[] main = File.ReadAllBytes(Path.Combine(scripts, "floppy.gd"));
-        byte[] overlay = File.ReadAllBytes(Path.Combine(scripts, "floppy_overlay.gd"));
         using var input = File.OpenRead(source);
         using var reader = new BinaryReader(input, Encoding.UTF8, leaveOpen: true);
         var (header, basis, entries) = ReadIndex(reader);
+        // Older Floppy releases shipped an in-game menu. Remove both resource path
+        // spellings, including compiled/remap companions, while retaining other mods.
+        entries.RemoveAll(e => IsLegacyOverlay(e.Name));
         var settings = entries.SingleOrDefault(e => e.Name == "res://project.binary" || e.Name == "project.binary")
             ?? throw new InvalidDataException("Godot-Projekteinstellungen fehlen im Paket.");
         if (settings.Size > 16 * 1024 * 1024) throw new InvalidDataException("Godot-Projekteinstellungen sind unerwartet groß.");
@@ -28,8 +30,7 @@ internal static class GodotPck
         var replacements = new Dictionary<string, byte[]>(StringComparer.Ordinal)
         {
             [settings.Name] = configuration,
-            ["res://floppy.gd"] = main,
-            ["res://floppy_overlay.gd"] = overlay
+            ["res://floppy.gd"] = main
         };
         foreach (string name in replacements.Keys)
             if (!entries.Any(e => e.Name == name)) entries.Add(new(name, 0, 0, new byte[16], 0));
@@ -132,7 +133,8 @@ internal static class GodotPck
         {
             byte[] key = ReadBlob(reader);
             byte[] value = ReadBlob(reader);
-            if (Encoding.UTF8.GetString(key) != "autoload/Floppy") values.Add((key, value));
+            string name = Encoding.UTF8.GetString(key);
+            if (name != "autoload/Floppy" && name != "autoload/FloppyOverlay") values.Add((key, value));
         }
         if (source.Position != source.Length) throw new InvalidDataException("Unbekannte zusätzliche Projekteinstellungen.");
         byte[] script = Encoding.UTF8.GetBytes("*res://floppy.gd");
@@ -164,6 +166,11 @@ internal static class GodotPck
         uint length = reader.ReadUInt32();
         if (length > reader.BaseStream.Length - reader.BaseStream.Position) throw new EndOfStreamException();
         return reader.ReadBytes(checked((int)length));
+    }
+    private static bool IsLegacyOverlay(string name)
+    {
+        string path = name.StartsWith("res://", StringComparison.Ordinal) ? name.Substring(6) : name;
+        return path is "floppy_overlay.gd" or "floppy_overlay.gdc" or "floppy_overlay.gd.remap" or "floppy_overlay.gd.uid";
     }
     private static void CopyBytes(Stream source, Stream destination, long count)
     {

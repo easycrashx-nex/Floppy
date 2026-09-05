@@ -67,7 +67,7 @@ public sealed class IpcClient : IDisposable
     }
 
     /// <summary>Schickt eine Anfrage und gibt die Antwort zurück. Bei Verbindungsverlust null.</summary>
-    public async Task<JsonObject?> SendAsync(JsonObject request)
+    public async Task<JsonObject?> SendAsync(JsonObject request, Func<bool>? stillCurrent = null)
     {
         var connection = _connection;
         if (connection == null) return null;
@@ -76,7 +76,7 @@ public sealed class IpcClient : IDisposable
         try
         {
             // Eine vor einem Spielwechsel eingereihte Anfrage gehört niemals zur neuen Verbindung.
-            if (!ReferenceEquals(connection, _connection)) return null;
+            if (!ReferenceEquals(connection, _connection) || stillCurrent?.Invoke() == false) return null;
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(connection.Stopped.Token);
             timeout.CancelAfter(_responseTimeout);
             await connection.Writer.WriteLineAsync(request.ToJsonString().AsMemory(), timeout.Token);
@@ -109,6 +109,9 @@ public sealed class IpcClient : IDisposable
     public Task<JsonObject?> GetSchemaAsync() => SendAsync(new JsonObject { ["cmd"] = "schema" });
 
     public Task<JsonObject?> GetStateAsync() => SendAsync(new JsonObject { ["cmd"] = "state" });
+
+    public Task<JsonObject?> SetOverlayAsync(bool open, string sessionId, Func<bool>? stillCurrent = null) =>
+        SendAsync(new JsonObject { ["cmd"] = "overlay", ["open"] = open, ["sessionId"] = sessionId }, stillCurrent);
 
     public Task<JsonObject?> InvokeAsync(string id) =>
         SendAsync(new JsonObject { ["cmd"] = "invoke", ["id"] = id });

@@ -105,7 +105,7 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
-                <TextBlock Text="Dein Spiel" Foreground="{StaticResource Muted}" FontSize="11" Margin="0,0,0,5"/>
+                <TextBlock x:Name="HeaderCaption" Text="Dein Spiel" Foreground="{StaticResource Muted}" FontSize="11" Margin="0,0,0,5"/>
                 <TextBlock x:Name="SelectedGameTitle" FontSize="26" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
                            Text="{Binding SelectedItem.Name, ElementName=GameList, TargetNullValue=Deine Bibliothek, FallbackValue=Deine Bibliothek}"/>
             </StackPanel>
@@ -114,6 +114,10 @@
                         Margin="0,0,8,0" Click="OnLaunchGame"/>
                 <Button x:Name="ConnectButton" Content="Verbinden" MinWidth="104"
                         Style="{StaticResource AccentButton}" Click="OnConnectClicked"/>
+                <Button x:Name="OverlayDesktopButton" Content="Desktop" Visibility="Collapsed" Margin="0,0,8,0"
+                        Style="{StaticResource FlatButton}" Click="OnOverlayDesktop"/>
+                <Button x:Name="OverlayCloseButton" Content="Zurück zum Spiel · F1" Visibility="Collapsed"
+                        Style="{StaticResource AccentButton}" Click="OnOverlayClose"/>
             </StackPanel>
         </Grid>
 
@@ -127,6 +131,9 @@
                 <TextBox x:Name="SearchBox" Style="{StaticResource SearchBox}" HorizontalAlignment="Stretch"
                          Margin="0,0,22,0" TextChanged="OnSearchChanged" AutomationProperties.Name="Funktionen durchsuchen"/>
                 <WrapPanel x:Name="HeaderActions" Grid.Column="1" VerticalAlignment="Center">
+                    <Button x:Name="OverlayButton" Content="Overlay · F1" IsEnabled="False" Margin="0,0,8,0"
+                            Style="{StaticResource FlatButton}" Click="OnOverlayClicked"
+                            ToolTip="Zuerst mit einem Spiel verbinden. Für Vollbild den Modus Randloses Vollbild im Spiel wählen."/>
                     <Button x:Name="AllOffButton" Content="Alles aus" Style="{StaticResource GhostButton}"
                             ToolTip="Alle rücksetzbaren Optionen auf ihre Normalwerte setzen" Margin="0,0,8,0" Click="OnAllOff"/>
                     <Button x:Name="ToolsButton" Content="Werkzeuge  ···" Style="{StaticResource FlatButton}" Click="OnToolsClicked">
@@ -209,7 +216,7 @@
                        ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/>
             <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0">
                 <TextBlock x:Name="GameLabel" Text="nicht verbunden" FontSize="10.5" Foreground="{StaticResource Muted}" Margin="0,0,14,0" MaxWidth="150" TextTrimming="CharacterEllipsis"/>
-                <TextBlock Text="F1  Menü" FontFamily="{StaticResource Mono}" FontSize="10.5" Foreground="{StaticResource Muted}" ToolTip="Öffnet das Menü, sofern vom Spielmodul unterstützt."/>
+                <TextBlock Text="F1  Overlay" FontFamily="{StaticResource Mono}" FontSize="10.5" Foreground="{StaticResource Muted}" ToolTip="Externes Overlay für Fenstermodus und randloses Vollbild. Esc schließt es."/>
             </StackPanel>
         </Grid>
     </Grid>
