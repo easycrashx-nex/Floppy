@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Floppy.Unity.Mono</AssemblyName>
+    <RootNamespace>Floppy.Core</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BepInEx.Unity.Mono" Version="6.0.0-be.697" IncludeAssets="compile" />
+    <PackageReference Include="UnityEngine.Modules" Version="2022.3.0" IncludeAssets="compile" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Floppy.Model\Floppy.Model.csproj" Private="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Das Overlay ist für Mono und IL2CPP identisch - derselbe Quellcode,
+         nur zweimal übersetzt. -->
+    <Compile Include="..\Shared\Menu\*.cs" LinkBase="Menu" />
+  </ItemGroup>
+</Project>

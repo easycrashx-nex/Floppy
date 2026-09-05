@@ -1,0 +1,199 @@
+﻿<Window x:Class="Floppy.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Floppy" Height="760" Width="1180"
+        MinHeight="560" MinWidth="980"
+        Background="{StaticResource BgTief}"
+        WindowStartupLocation="CenterScreen">
+
+    <Window.InputBindings>
+        <!-- Strg+F springt ins Suchfeld - bei knapp 300 Eintraegen der kuerzeste Weg -->
+        <KeyBinding Key="F" Modifiers="Control" Command="{x:Static ApplicationCommands.Find}"/>
+    </Window.InputBindings>
+
+    <Window.CommandBindings>
+        <CommandBinding Command="{x:Static ApplicationCommands.Find}" Executed="OnFocusSearch"/>
+    </Window.CommandBindings>
+
+    <Window.Resources>
+
+        <!-- Ein Spiel in der Bibliothek: Cover links, Name und Zustand rechts -->
+        <DataTemplate x:Key="GameTemplate">
+            <Grid Margin="0,2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Platzhalter liegt hinter dem Cover, falls Steam keins vorrätig hat -->
+                <Border Grid.Column="0" Width="42" Height="60" CornerRadius="4"
+                        Background="{StaticResource BgRowHover}">
+                    <Grid>
+                        <TextBlock Text="?" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   Foreground="{StaticResource Muted}" FontSize="18"/>
+                        <Image Source="{Binding CoverPath}" Stretch="UniformToFill"/>
+                    </Grid>
+                </Border>
+
+                <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Name}" TextWrapping="Wrap" FontSize="13"/>
+                    <TextBlock Text="{Binding Status}" FontSize="10.5" Margin="0,3,0,0"
+                               Foreground="{StaticResource Muted}"/>
+                </StackPanel>
+            </Grid>
+        </DataTemplate>
+
+    </Window.Resources>
+
+    <Grid Margin="14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="228"/>
+            <ColumnDefinition Width="212"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- Zwei Zeilen lassen auch bei kleinen Fenstern Platz für Status und Aktionen. -->
+        <Grid Grid.Row="0" Grid.ColumnSpan="3" Margin="0,0,0,12">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="Floppy" FontSize="21" FontWeight="Bold"
+                           Foreground="{StaticResource Accent}"/>
+                <TextBlock x:Name="GameLabel" Text="nicht verbunden" FontSize="13"
+                           Foreground="{StaticResource Muted}" Margin="12,7,0,0"/>
+            </StackPanel>
+
+            <!-- Zustand als Anzeige: Punkt plus Text, Werte in Schreibmaschinenschrift -->
+            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"
+                        Margin="20,0,20,0">
+                <Ellipse x:Name="StatusDot" Width="8" Height="8" Margin="0,1,7,0"
+                         Fill="{StaticResource Muted}" VerticalAlignment="Center"/>
+                <TextBlock x:Name="StatusLabel" Text="" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                           FontFamily="{StaticResource Mono}" FontSize="12"
+                           Foreground="{StaticResource Muted}"/>
+            </StackPanel>
+
+            <WrapPanel Grid.Row="1" Grid.ColumnSpan="2" Margin="0,12,0,0" VerticalAlignment="Center">
+                <TextBox x:Name="SearchBox" Style="{StaticResource SearchBox}"
+                         Width="220" Margin="0,0,8,0"
+                         TextChanged="OnSearchChanged"/>
+                <Button x:Name="AllOffButton" Content="Alles aus"
+                        Style="{StaticResource FlatButton}" Margin="0,0,8,0"
+                        Click="OnAllOff"/>
+                <Button x:Name="RescanButton" Content="Neu suchen"
+                        Style="{StaticResource FlatButton}" Margin="0,0,8,0"
+                        Click="OnRescanLibrary"/>
+                <Button x:Name="LaunchButton" Content="Spiel starten"
+                        Style="{StaticResource FlatButton}" Margin="0,0,8,0"
+                        Click="OnLaunchGame"/>
+                <Button x:Name="ConnectButton" Content="Verbinden"
+                        Style="{StaticResource AccentButton}" Click="OnConnectClicked"/>
+                <Button Content="Werkzeuge" Style="{StaticResource FlatButton}" Margin="8,0,0,0" Click="OnToolsClicked">
+                    <Button.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Header="Diagnose anzeigen" Click="OnDiagnose"/>
+                            <MenuItem Header="Floppy einrichten / reparieren" Click="OnRepair"/>
+                            <MenuItem Header="Installation wiederherstellen" Click="OnRestore"/>
+                            <Separator/>
+                            <MenuItem Header="Spielordner wählen…" Click="OnChooseGameFolder"/>
+                            <MenuItem Header="Automatische Ordnersuche verwenden" Click="OnAutomaticGameFolder"/>
+                            <MenuItem Header="Profilordner öffnen" Click="OnOpenProfiles"/>
+                        </ContextMenu>
+                    </Button.ContextMenu>
+                </Button>
+            </WrapPanel>
+        </Grid>
+
+        <!-- Spielebibliothek -->
+        <Border Grid.Row="1" Grid.Column="0" Background="{StaticResource BgPanel}"
+                CornerRadius="10" Padding="10" Margin="0,0,10,0">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Text="SPIELE" FontSize="10.5" FontWeight="SemiBold"
+                           Foreground="{StaticResource Muted}" Margin="4,2,0,8"/>
+
+                <ListBox x:Name="GameList" Grid.Row="1"
+                         Background="Transparent" BorderThickness="0"
+                         ItemTemplate="{StaticResource GameTemplate}"
+                         ItemContainerStyle="{StaticResource NavItem}"
+                         HorizontalContentAlignment="Stretch"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         SelectionChanged="OnGameSelected"/>
+
+                <TextBlock x:Name="LibraryHint" Grid.Row="2" FontSize="10.5" TextWrapping="Wrap"
+                           Foreground="{StaticResource Muted}" Margin="4,10,0,0"/>
+            </Grid>
+        </Border>
+
+        <!-- Rubriken, je mit Anzahl und Zahl der eingeschalteten Cheats -->
+        <Border Grid.Row="1" Grid.Column="1" Background="{StaticResource BgPanel}"
+                CornerRadius="10" Padding="10" Margin="0,0,10,0">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Text="RUBRIKEN" FontSize="10.5" FontWeight="SemiBold"
+                           Foreground="{StaticResource Muted}" Margin="4,2,0,8"/>
+
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel x:Name="CategoryList"/>
+                </ScrollViewer>
+            </Grid>
+        </Border>
+
+        <!-- Cheats -->
+        <Border Grid.Row="1" Grid.Column="2" Background="{StaticResource BgPanel}"
+                CornerRadius="10" Padding="12">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <Grid Grid.Row="0" Margin="2,0,2,10">
+                    <TextBlock x:Name="PaneTitle" Text="" FontSize="15" FontWeight="SemiBold"
+                               VerticalAlignment="Center"/>
+                    <TextBlock x:Name="PaneCount" Text="" HorizontalAlignment="Right"
+                               VerticalAlignment="Center"
+                               FontFamily="{StaticResource Mono}" FontSize="11.5"
+                               Foreground="{StaticResource Muted}"/>
+                </Grid>
+
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel x:Name="OptionsPanel"/>
+                </ScrollViewer>
+
+                <StackPanel x:Name="EmptyHint" Grid.Row="1"
+                            VerticalAlignment="Center" HorizontalAlignment="Center"
+                            MaxWidth="420">
+                    <TextBlock x:Name="EmptyTitle" Text="Noch keine Verbindung"
+                               FontSize="16" FontWeight="SemiBold"
+                               HorizontalAlignment="Center"/>
+                    <TextBlock x:Name="EmptyBody" Margin="0,10,0,0" TextWrapping="Wrap"
+                               TextAlignment="Center"
+                               Foreground="{StaticResource Muted}"
+                               Text="Starte ein Spiel aus der Liste links."/>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

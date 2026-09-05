@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Floppy.Oddcore</AssemblyName>
+    <RootNamespace>Floppy.Oddcore</RootNamespace>
+    <TargetFramework>net6.0</TargetFramework>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BepInEx.Unity.IL2CPP" Version="6.0.0-be.697" IncludeAssets="compile" />
+    <!-- Pin the available transitive version instead of NuGet choosing an approximate match. -->
+    <PackageReference Include="Samboy063.Cpp2IL.Core" Version="2022.1.0-pre-release.13" IncludeAssets="compile" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Floppy.Model\Floppy.Model.csproj" Private="false" />
+    <ProjectReference Include="..\Floppy.Unity.IL2CPP\Floppy.Unity.IL2CPP.csproj" Private="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Der Spielcode als lesbare Zwischen-Assemblies. BepInEx erzeugt sie beim
+         ersten Start des Spiels neu - nach einem Spiel-Update also einmal starten. -->
+    <Reference Include="Assembly-CSharp">
+      <HintPath>$(OddcoreInterop)\Assembly-CSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(OddcoreInterop)\UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.TextRenderingModule">
+      <HintPath>$(OddcoreInterop)\UnityEngine.TextRenderingModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Il2Cppmscorlib">
+      <HintPath>$(OddcoreInterop)\Il2Cppmscorlib.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+</Project>
+

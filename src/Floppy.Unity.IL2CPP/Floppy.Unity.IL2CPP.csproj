@@ -1,0 +1,51 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Floppy.Unity.IL2CPP</AssemblyName>
+    <RootNamespace>Floppy.Core</RootNamespace>
+    <TargetFramework>net6.0</TargetFramework>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BepInEx.Unity.IL2CPP" Version="6.0.0-be.697" IncludeAssets="compile" />
+    <!-- Pin the available transitive version instead of NuGet choosing an approximate match. -->
+    <PackageReference Include="Samboy063.Cpp2IL.Core" Version="2022.1.0-pre-release.13" IncludeAssets="compile" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Floppy.Model\Floppy.Model.csproj" Private="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Unity-Typen kommen bei IL2CPP aus den erzeugten Zwischen-Assemblies -->
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(OddcoreInterop)\UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.IMGUIModule">
+      <HintPath>$(OddcoreInterop)\UnityEngine.IMGUIModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.InputLegacyModule">
+      <HintPath>$(OddcoreInterop)\UnityEngine.InputLegacyModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+
+    <!-- TextAnchor liegt bei IL2CPP in einem eigenen Modul, bei Mono steckt es im Kern -->
+    <Reference Include="UnityEngine.TextRenderingModule">
+      <HintPath>$(OddcoreInterop)\UnityEngine.TextRenderingModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+
+    <!-- Die Basisklassen der Laufzeit - ohne sie kennt der Übersetzer Il2CppSystem.Object nicht -->
+    <Reference Include="Il2Cppmscorlib">
+      <HintPath>$(OddcoreInterop)\Il2Cppmscorlib.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Shared\Menu\*.cs" LinkBase="Menu" />
+  </ItemGroup>
+</Project>
+

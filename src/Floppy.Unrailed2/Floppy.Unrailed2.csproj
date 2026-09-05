@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- Laeuft im Client, nicht im Spiel - wie das Unreal-Modul. -->
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Floppy.Model\Floppy.Model.csproj" />
+    <Compile Include="..\Shared\HostTakt.cs" Link="HostTakt.cs" />
+    <InternalsVisibleTo Include="Floppy.Host.Tests" />
+  </ItemGroup>
+</Project>

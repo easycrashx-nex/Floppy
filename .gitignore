@@ -1,0 +1,21 @@
+# Build output and local tooling
+**/bin/
+**/obj/
+**/__pycache__/
+*.py[cod]
+.vs/
+.idea/
+.vscode/
+artifacts/
+releases/
+*.log
+
+# Machine-specific configuration and temporary investigations
+Directory.Build.local.props
+scratch/
+*.whl
+
+# Local installation backups, never source assets
+.floppy/
+*.floppy-original
+*.neu

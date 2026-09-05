@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="..\..\src\Floppy.App\Installer.cs" Link="Installer.cs" />
+    <Compile Include="..\..\src\Floppy.App\GodotPck.cs" Link="GodotPck.cs" />
+  </ItemGroup>
+</Project>

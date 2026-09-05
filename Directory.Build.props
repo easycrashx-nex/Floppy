@@ -1,0 +1,39 @@
+﻿<Project>
+  <PropertyGroup>
+    <!-- Overrides: -p:GameDir=... or Directory.Build.local.props (not committed). -->
+    <GameDir Condition="'$(GameDir)' == ''">D:\SteamLibrary\steamapps\common\How to Fish\How to Fish</GameDir>
+
+    <!-- ODDCORE laeuft auf IL2CPP. Den Spielcode gibt es dort nicht als DLL - BepInEx
+         erzeugt beim ersten Start lesbare Zwischen-Assemblies, gegen die wir bauen. -->
+    <!-- Stonewards laeuft auf Unity Mono - der Spielcode liegt als DLL vor. -->
+    <StonewardsDir Condition="'$(StonewardsDir)' == ''">D:\SteamLibrary\steamapps\common\Stonewards</StonewardsDir>
+
+    <OddcoreDir Condition="'$(OddcoreDir)' == ''">D:\SteamLibrary\steamapps\common\ODDCORE</OddcoreDir>
+    <BuildGameModules Condition="'$(BuildGameModules)' == ''">true</BuildGameModules>
+
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>$(MSBuildProjectName)</AssemblyName>
+    <RootNamespace>$(MSBuildProjectName)</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <DebugType>embedded</DebugType>
+    <Version>1.1.0</Version>
+    <EnableDefaultCompileItems>true</EnableDefaultCompileItems>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <NoWarn>$(NoWarn);CS0649;CS0169;MSB3277</NoWarn>
+  </PropertyGroup>
+  <Import Project="Directory.Build.local.props" Condition="Exists('Directory.Build.local.props')" />
+  <PropertyGroup>
+    <GameManaged Condition="'$(GameManaged)' == ''">$(GameDir)\How to Fish_Data\Managed</GameManaged>
+    <StonewardsManaged Condition="'$(StonewardsManaged)' == ''">$(StonewardsDir)\Stonewards_Data\Managed</StonewardsManaged>
+    <OddcoreInterop Condition="'$(OddcoreInterop)' == ''">$(OddcoreDir)\BepInEx\interop</OddcoreInterop>
+  </PropertyGroup>
+  <Target Name="CheckGameReferences" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="'$(MSBuildProjectName)' == 'Floppy.HowToFish' and !Exists('$(GameManaged)\Assembly-CSharp.dll')"
+           Text="How to Fish assemblies missing. Set GameDir or GameManaged in Directory.Build.local.props; use -p:BuildGameModules=false for desktop-only builds." />
+    <Error Condition="'$(MSBuildProjectName)' == 'Floppy.Stonewards' and !Exists('$(StonewardsManaged)\Assembly-CSharp.dll')"
+           Text="Stonewards assemblies missing. Set StonewardsDir in Directory.Build.local.props." />
+    <Error Condition="('$(MSBuildProjectName)' == 'Floppy.Oddcore' or '$(MSBuildProjectName)' == 'Floppy.Unity.IL2CPP') and !Exists('$(OddcoreInterop)\UnityEngine.CoreModule.dll')"
+           Text="ODDCORE interop assemblies missing. Set OddcoreDir/OddcoreInterop; generate BepInEx interop once before building this module." />
+  </Target>
+</Project>

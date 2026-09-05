@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="BepInEx.Unity.Mono" Version="6.0.0-be.697" IncludeAssets="compile" />
+    <PackageReference Include="UnityEngine.Modules" Version="2022.3.0" IncludeAssets="compile" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Floppy.Model\Floppy.Model.csproj" Private="false" />
+    <ProjectReference Include="..\Floppy.Unity.Mono\Floppy.Unity.Mono.csproj" Private="false" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Der Spielcode selbst. Nach einem Spiel-Update ggf. neu bauen. -->
+    <Reference Include="Assembly-CSharp">
+      <HintPath>$(GameManaged)\Assembly-CSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="FishNet.Runtime">
+      <HintPath>$(GameManaged)\FishNet.Runtime.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="GameKit.Dependencies">
+      <HintPath>$(GameManaged)\GameKit.Dependencies.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+</Project>

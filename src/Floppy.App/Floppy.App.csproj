@@ -1,0 +1,62 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>Floppy</AssemblyName>
+    <RootNamespace>Floppy.App</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>floppy.ico</ApplicationIcon>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Nur für die Baureihenfolge: die App verweist auf keinen Code daraus,
+         braucht die fertigen DLLs aber im Ausgabeordner. -->
+    <ProjectReference Include="..\Floppy.Model\Floppy.Model.csproj"
+                      ReferenceOutputAssembly="false" Private="false" />
+    <ProjectReference Include="..\Floppy.Unity.Mono\Floppy.Unity.Mono.csproj" Condition="'$(BuildGameModules)' == 'true'"
+                      ReferenceOutputAssembly="false" Private="false" />
+    <ProjectReference Include="..\Floppy.HowToFish\Floppy.HowToFish.csproj" Condition="'$(BuildGameModules)' == 'true'"
+                      ReferenceOutputAssembly="false" Private="false" />
+    <ProjectReference Include="..\Floppy.Unreal\Floppy.Unreal.csproj" />
+    <ProjectReference Include="..\Floppy.Unrailed2\Floppy.Unrailed2.csproj" />
+    <ProjectReference Include="..\Floppy.Stonewards\Floppy.Stonewards.csproj" Condition="'$(BuildGameModules)' == 'true'"
+                      ReferenceOutputAssembly="false" Private="false" />
+    <ProjectReference Include="..\Floppy.Unity.IL2CPP\Floppy.Unity.IL2CPP.csproj" Condition="'$(BuildGameModules)' == 'true'"
+                      ReferenceOutputAssembly="false" Private="false" />
+    <ProjectReference Include="..\Floppy.Oddcore\Floppy.Oddcore.csproj" Condition="'$(BuildGameModules)' == 'true'"
+                      ReferenceOutputAssembly="false" Private="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="..\Floppy.Pitt\*.gd" Link="runtime\pitt\%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\..\vendor\BepInEx-Unity.Mono-win-x64-*.zip" Condition="'$(BuildGameModules)' == 'true'"
+             Link="runtime\mono\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\..\vendor\BepInEx-Unity.IL2CPP-win-x64-*.zip" Condition="'$(BuildGameModules)' == 'true'"
+             Link="runtime\il2cpp\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- Resolve real project output paths, including publishing an existing build. -->
+  <Target Name="FloppyLaufzeitdateien" BeforeTargets="GetCopyToOutputDirectoryItems;GetCopyToPublishDirectoryItems;ComputeFilesToPublish"
+          DependsOnTargets="ResolveProjectReferences" Condition="'$(BuildGameModules)' == 'true'">
+    <MSBuild Projects="@(ProjectReference)" Targets="GetTargetPath" BuildInParallel="true"
+             Properties="Configuration=$(Configuration)" RemoveProperties="TargetFramework;RuntimeIdentifier;SelfContained">
+      <Output TaskParameter="TargetOutputs" ItemName="_FloppyProjectOutputs" />
+    </MSBuild>
+    <ItemGroup>
+      <_FloppyRuntime Include="@(_FloppyProjectOutputs)"
+          Condition="'%(Filename)' == 'Floppy.Model' or '%(Filename)' == 'Floppy.Unity.Mono' or '%(Filename)' == 'Floppy.HowToFish' or '%(Filename)' == 'Floppy.Stonewards'">
+        <TargetPath>runtime\mono\plugins\%(Filename)%(Extension)</TargetPath>
+      </_FloppyRuntime>
+      <_FloppyRuntime Include="@(_FloppyProjectOutputs)"
+          Condition="'%(Filename)' == 'Floppy.Model' or '%(Filename)' == 'Floppy.Unity.IL2CPP' or '%(Filename)' == 'Floppy.Oddcore'">
+        <TargetPath>runtime\il2cpp\plugins\%(Filename)%(Extension)</TargetPath>
+      </_FloppyRuntime>
+      <ContentWithTargetPath Include="@(_FloppyRuntime)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    </ItemGroup>
+  </Target>
+</Project>
