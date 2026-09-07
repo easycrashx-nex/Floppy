@@ -1300,6 +1300,23 @@ public partial class MainWindow : Window
 
     private UIElement BuildChoice(OptionInfo option)
     {
+        if (_connectedGameId == "MortalShell2" && option.Id == "item.was")
+        {
+            var picker = new ItemPicker(ItemCatalog.FromChoices(option.Choices), option.ChoiceIndex);
+            picker.SelectionChanged += async originalIndex =>
+            {
+                if (_suppressEvents) return;
+                Merke(option);
+                ReportIfFailed(await _ipc.SetChoiceAsync(option.Id, originalIndex));
+            };
+            Register(option, state =>
+            {
+                picker.IsEnabled = state.Available;
+                picker.SetSelectedIndex(state.ChoiceIndex);
+            });
+            return picker;
+        }
+
         var combo = new ComboBox
         {
             ItemsSource = option.Choices,

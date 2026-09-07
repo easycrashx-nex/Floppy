@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -36,6 +37,8 @@ internal static class Program
             await TimeoutTest();
             await SessionTest();
             await OverlayQueueTest();
+            ItemCatalogTests();
+            ItemMetadataTests();
             Console.WriteLine($"{_count} checks passed");
             return 0;
         }
@@ -137,5 +140,77 @@ internal static class Program
             "current overlay open sends boolean and exact session identity");
         await writer.WriteLineAsync("{\"ok\":true,\"overlayOpen\":true}");
         Check((await validOpen.WaitAsync(TimeSpan.FromSeconds(2)))?["overlayOpen"]?.GetValue<bool>() == true, "current overlay open receives acknowledgement");
+    }
+
+    private static void ItemCatalogTests()
+    {
+        string emptyAssets = Path.Combine(Path.GetTempPath(), "floppy-no-item-assets-" + Guid.NewGuid().ToString("N"));
+        string[] choices = { "ThoraciumPrime", "Coin", "MushroomVillageKey", "MapLocationHeavyHammer", "UnknownID7", "Coin", "" };
+        var items = ItemCatalog.FromChoices(choices, emptyAssets);
+        Check(items.Count == choices.Length && items.Select(e => e.Id).SequenceEqual(choices)
+            && items.Select(e => e.Index).SequenceEqual(Enumerable.Range(0, choices.Length)), "catalog preserves every raw ID and source index, including duplicates");
+        Check(items[0].Name == "Thoracium Prime" && items[3].Name == "Map Location Heavy Hammer"
+            && items[4].Name == "Unknown ID 7", "catalog humanizes words and numbers without translating or rewriting IDs");
+        Check(items[0].Category == "Materialien" && items[1].Category == "Währungen" && items[2].Category == "Schlüssel & Quests"
+            && items[3].Category == "Karten & Freischaltungen" && items[4].Category == "Sonstiges", "catalog groups known IDs conservatively and keeps unknowns");
+        var reordered = items.OrderByDescending(item => item.Name).ToArray();
+        var filtered = ItemCatalog.Filter(reordered, ItemCatalog.AllCategories, "cOiN");
+        Check(filtered.Count == 2 && filtered.Select(e => e.Index).SequenceEqual(new[] { 1, 5 })
+            && filtered.All(e => choices[e.Index] == e.Id), "sorting and filtering preserve backend selection identity");
+        Check(ItemCatalog.Filter(items, "materialien", "PRIME").Single().Id == "ThoraciumPrime", "catalog category and query match case-insensitively");
+        Check(ItemCatalog.Filter(items, ItemCatalog.AllCategories, "schlüssel").Single().Index == 2, "catalog query searches category as well as ID and name");
+        Check(ItemCatalog.Filter(items, ItemCatalog.AllCategories, "heavy hammer").Single().Index == 3, "catalog query searches humanized names");
+        Check(ItemCatalog.Filter(items, "Artefakte", "").Count == 0, "category filtering never returns unrelated items");
+        var definitions = ItemCatalog.FromChoices(new[] { "HealingAmount", "Bloodseed", "FoundryStone", "MuradeanActuator", "VartkoFeetPic1" }, emptyAssets);
+        Check(definitions.Take(2).All(item => item.Category == "Verbesserungen")
+            && definitions.Skip(2).Take(2).All(item => item.Category == "Karten & Freischaltungen")
+            && definitions[4].Category == "Sammlerstücke", "observed progression, forge unlock and sketch definitions have distinct categories");
+        Check(ItemCatalog.FromChoices(Array.Empty<string>(), emptyAssets).Count == 0 && ItemCatalog.FromChoices(null, emptyAssets).Count == 0
+            && items[6].Id == "" && items[6].Index == 6 && items[6].IconPath == null, "empty input and empty IDs remain safe without shifting choice indices");
+    }
+
+    private static void ItemMetadataTests()
+    {
+        string folder = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "floppy-item-metadata-" + Guid.NewGuid().ToString("N")));
+        string assets = Path.Combine(folder, "Assets", "MortalShell2");
+        string icons = Path.Combine(assets, "icons");
+        Directory.CreateDirectory(icons);
+        try
+        {
+            string png = Path.Combine(icons, "Coin.png");
+            File.WriteAllBytes(png, new byte[] { 137, 80, 78, 71 });
+            string metadataPath = Path.Combine(assets, "items.json");
+            File.WriteAllText(metadataPath, """
+                {
+                  "Coin": { "name": " Münze aus Metadaten ", "category": "Kataloggruppe", "icon": "icons/Coin.png" },
+                  "ThoraciumPrime": { "name": " ", "category": "", "icon": "Coin.png" },
+                  "Unsafe": { "name": 7, "category": false, "icon": "../Coin.png" },
+                  "Url": { "icon": "https://example.invalid/Coin.png" },
+                  "Nested": { "icon": "icons/../Coin.png" },
+                  "Drive": { "icon": "C:\\elsewhere\\Coin.png" },
+                  "Missing": { "icon": "icons/missing.png" },
+                  "OtherType": { "icon": "icons/Coin.svg" },
+                  "BadRecord": false
+                }
+                """);
+            var items = ItemCatalog.FromChoices(new[] { "Coin", "ThoraciumPrime", "Unsafe", "Url", "Nested", "Drive", "Missing", "OtherType", "BadRecord" }, folder);
+            Check(items[0].Name == "Münze aus Metadaten" && items[0].Category == "Kataloggruppe" && items[0].Index == 0 && items[0].Id == "Coin",
+                "bundled display metadata takes precedence without changing ID or index");
+            Check(items[0].IconPath == png && items[1].IconPath == png && Path.IsPathFullyQualified(items[0].IconPath!), "catalog resolves bundled PNG names only to absolute local icon paths");
+            Check(items[1].Name == "Thoracium Prime" && items[1].Category == "Materialien" && items[2].Name == "Unsafe" && items[2].Category == "Sonstiges",
+                "missing, blank and mistyped metadata fields fall back independently");
+            Check(items.Skip(2).All(e => e.IconPath == null), "catalog rejects URL, drive, traversal, absent and unsupported icon paths");
+            File.WriteAllText(metadataPath, "broken json");
+            Check(ItemCatalog.FromChoices(new[] { "Coin" }, folder).Single().Name == "Coin", "corrupt optional metadata cannot hide game items");
+            File.WriteAllText(metadataPath, "[]");
+            Check(ItemCatalog.FromChoices(new[] { "Coin" }, folder).Single().Category == "Währungen", "unexpected metadata root retains safe fallback");
+        }
+        finally
+        {
+            string expectedRoot = Path.GetFullPath(Path.GetTempPath()).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            if (!folder.StartsWith(expectedRoot, StringComparison.OrdinalIgnoreCase) || !Path.GetFileName(folder).StartsWith("floppy-item-metadata-", StringComparison.Ordinal))
+                throw new InvalidOperationException("Unexpected test fixture path");
+            Directory.Delete(folder, true);
+        }
     }
 }

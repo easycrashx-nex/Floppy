@@ -7,5 +7,6 @@
     <Compile Include="Program.cs" />
     <Compile Include="../../src/Floppy.App/IpcClient.cs" Link="IpcClient.cs" />
     <Compile Include="../../src/Floppy.App/UserSettings.cs" Link="UserSettings.cs" />
+    <Compile Include="../../src/Floppy.App/ItemCatalog.cs" Link="ItemCatalog.cs" />
   </ItemGroup>
 </Project>

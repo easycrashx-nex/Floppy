@@ -1,7 +1,9 @@
 using System;
 using System.IO;
+using System.Globalization;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 
@@ -48,6 +50,26 @@ internal static class SelfCheck
                     && Separate("SearchBox", "HeaderActions") && Separate("SessionBar", "OptionsPane")
                     && Separate("LaunchButton", "ConnectButton") && Separate("AllOffButton", "ToolsButton"),
                     "WPF-Bereiche ohne Überlappung " + size);
+            }
+            string catalogPath = Path.Combine(AppContext.BaseDirectory, "Assets", "MortalShell2", "items.json");
+            Check(File.Exists(catalogPath), "Itemkatalog im Paket");
+            if (File.Exists(catalogPath))
+            {
+                using var catalog = JsonDocument.Parse(File.ReadAllText(catalogPath));
+                var rows = catalog.RootElement.EnumerateObject().ToArray();
+                var items = ItemCatalog.FromChoices(rows.Select(row => row.Name).ToArray());
+                int expectedIcons = rows.Count(row => row.Value.TryGetProperty("icon", out var icon)
+                    && icon.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(icon.GetString()));
+                var images = new ItemImageConverter();
+                Check(items.Count(item => item.IconPath != null) == expectedIcons && items.Where(item => item.IconPath != null)
+                    .All(item => images.Convert(item.IconPath!, typeof(object), null!, CultureInfo.InvariantCulture) != null),
+                    $"Itembilder vollständig und lesbar ({expectedIcons})");
+                var picker = new ItemPicker(items, items.Count > 0 ? 0 : -1);
+                picker.Measure(new Size(340, 500));
+                picker.Arrange(new Rect(0, 0, 340, 500));
+                picker.UpdateLayout();
+                Check(items.Count > 0 && ((ListBox)picker.FindName("ItemList")).Items.Count == items.Count,
+                    "Gegenstandsauswahl mit ausgeliefertem Katalog");
             }
             string[] required = {
                 "runtime/mono/plugins/Floppy.Model.dll", "runtime/mono/plugins/Floppy.Unity.Mono.dll",

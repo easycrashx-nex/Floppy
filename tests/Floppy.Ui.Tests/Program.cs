@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -80,6 +81,10 @@ internal static class Program
             }
             Check(Named<StackPanel>(window, "OptionsPanel").Children.Count == 0,
                 "offline empty state contains no fixture options");
+            CheckItemPicker(args.Length > 0 ? Path.GetFullPath(args[0]) : null);
+            CheckItemImages();
+            CheckItemPickerIntegration();
+            CheckItemPickerWindow(args.Length > 0 ? Path.GetFullPath(args[0]) : null);
             Console.WriteLine($"{_checks} UI checks passed");
             app.Shutdown();
             return 0;
@@ -217,6 +222,241 @@ internal static class Program
         Named<TextBlock>(window, "StatusLabel").Text = "UI-Vorschau · keine Verbindung";
     }
 
+    private static void CheckItemPicker(string? screenshot)
+    {
+        string missingIcon = Path.Combine(Path.GetTempPath(), "floppy-missing-item-" + Guid.NewGuid().ToString("N") + ".png");
+        var entries = new[]
+        {
+            new ItemEntry(0, "iron", "Eisenerz", "Materialien", null),
+            new ItemEntry(1, "chapel-key", "Schlüssel der Kapelle", "Schlüssel & Quests", missingIcon),
+            new ItemEntry(2, "resin", "Harzflasche", "Verbrauchsgegenstände", null),
+            new ItemEntry(3, "bright-iron", "Glänzendes Eisenerz", "Materialien", null),
+            new ItemEntry(4, "chapel-letter", "Brief aus der verlassenen Kapelle", "Schlüssel & Quests", null)
+        };
+        var picker = new ItemPicker(entries, selectedIndex: 2);
+        var events = new List<int>();
+        picker.SelectionChanged += events.Add;
+        var host = new Grid { Background = (Brush)Application.Current.FindResource("Bg"), Margin = new Thickness(16) };
+        host.Children.Add(picker);
+        var categories = Named<ComboBox>(picker, "CategoryFilter");
+        var search = Named<TextBox>(picker, "ItemSearch");
+        var list = Named<ListBox>(picker, "ItemList");
+        var selected = Named<TextBlock>(picker, "SelectedItemName");
+        var count = Named<TextBlock>(picker, "ResultCount");
+        Arrange(host, new Size(440, 640));
+        Check(list.Items.Count == entries.Length && selected.Text.Contains(entries[2].Name),
+            "item picker initially shows all entries and the current selection");
+        Check(Descendants(categories).OfType<TextBlock>().Any(t => t.Text == ((ItemCategory)categories.SelectedItem).Label),
+            "closed item category filter displays its readable label and count");
+
+        categories.SelectedValue = "Materialien";
+        Check(list.Items.Cast<ItemEntry>().Select(e => e.Index).SequenceEqual(new[] { 0, 3 }),
+            "item category filter retains original item identities");
+        Check(list.SelectedItem == null && selected.Text.Contains(entries[2].Name) && events.Count == 0,
+            "filtering out the current item preserves its selection without emitting a change");
+        search.Text = "GLÄNZEND";
+        Check(list.Items.Count == 1 && ((ItemEntry)list.Items[0]).Index == 3 && events.Count == 0,
+            "item search combines with category and ignores letter case without selecting automatically");
+
+        // Changing the standalone ListBox selection represents a user choosing a
+        // visible row. This control has no IPC client or game attached.
+        list.SelectedItem = list.Items[0];
+        Check(events.SequenceEqual(new[] { 3 }) && selected.Text.Contains(entries[3].Name),
+            "choosing the first filtered row emits its original index, not visible index zero");
+        picker.SetSelectedIndex(1);
+        Check(events.Count == 1 && list.SelectedItem == null && selected.Text.Contains(entries[1].Name),
+            "server selection updates remain visible when filtered out and never emit a command");
+        search.Text = "";
+        categories.SelectedValue = "Schlüssel & Quests";
+        Check(list.Items.Cast<ItemEntry>().Select(e => e.Index).SequenceEqual(new[] { 1, 4 })
+            && list.SelectedItem is ItemEntry { Index: 1 } && events.Count == 1,
+            "restoring a selected item through category changes remains silent");
+        search.Text = "kapelle";
+        Check(list.Items.Count == 2 && events.Count == 1, "search matches item names within the selected category");
+        search.Text = "kein solches Gegenstandsfragment";
+        Check(list.Items.Count == 0 && count.Text.Contains("0") && selected.Text.Contains(entries[1].Name) && events.Count == 1,
+            "empty search results retain the current selection and report zero results");
+        search.Text = "";
+        picker.SetSelectedIndex(4);
+        picker.SetSelectedIndex(1);
+        Check(events.Count == 1, "repeated programmatic selection updates do not emit selection events");
+
+        foreach (double width in new[] { 320d, 480d })
+        {
+            Arrange(host, new Size(width, 640));
+            Rect available = new(0, 0, picker.ActualWidth, picker.ActualHeight);
+            Check(new FrameworkElement[] { categories, search, list, selected, count }
+                .All(e => Inside(Bounds(e, picker), available)), "item picker controls fit at width " + width);
+            Check(list.ActualHeight > 0 && list.ActualHeight <= 260
+                && Separate(Bounds(list, picker), Bounds(selected, picker)),
+                "bounded item list leaves its persistent selection visible at width " + width);
+        }
+        var row = list.ItemContainerGenerator.ContainerFromItem(entries[1]) as ListBoxItem;
+        Check(row != null, "item with a missing image still creates a selectable row");
+        var badge = Descendants(row!).OfType<Border>().Single(e => e.Name == "FallbackBadge");
+        var fallback = Descendants(row!).OfType<System.Windows.Shapes.Path>().Single(e => e.Name == "ItemFallback");
+        Check(badge.Visibility == Visibility.Visible && badge.ActualWidth > 0
+            && fallback.Visibility == Visibility.Visible && fallback.Data != null,
+            "a missing item image renders the visible fallback icon");
+        Check(selected.Text.Contains(entries[1].Name), "a missing image does not lose the selected item's name");
+
+        if (screenshot != null)
+        {
+            host.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            host.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            Grid.SetRow(picker, 1);
+            host.Children.Add(new TextBlock
+            {
+                Text = "UI-Vorschau · synthetische Gegenstände", FontSize = 12,
+                Foreground = (Brush)Application.Current.FindResource("Muted"), Margin = new Thickness(0, 0, 0, 16)
+            });
+            SaveScreenshot(host, new Size(480, 640), Sibling(screenshot, "-item-picker"));
+        }
+
+        var empty = new ItemPicker(Array.Empty<ItemEntry>(), selectedIndex: -1);
+        int emptyEvents = 0;
+        empty.SelectionChanged += _ => emptyEvents++;
+        empty.SetSelectedIndex(-1);
+        Check(Named<ListBox>(empty, "ItemList").Items.Count == 0 && emptyEvents == 0,
+            "an unloaded item catalogue remains empty without emitting a selection");
+    }
+
+    private static void CheckItemImages()
+    {
+        string prefix = Path.Combine(Path.GetTempPath(), "floppy-ui-image-" + Guid.NewGuid().ToString("N"));
+        string valid = prefix + ".png", broken = prefix + "-broken.png";
+        try
+        {
+            var bitmap = BitmapSource.Create(2, 2, 96, 96, PixelFormats.Bgra32, null,
+                new byte[] { 0, 180, 80, 255, 0, 180, 80, 255, 0, 180, 80, 255, 0, 180, 80, 255 }, 8);
+            var encoder = new PngBitmapEncoder();
+            encoder.Frames.Add(BitmapFrame.Create(bitmap));
+            using (var output = File.Create(valid)) encoder.Save(output);
+            File.WriteAllBytes(broken, new byte[] { 137, 80, 78, 71, 13, 10, 26, 10, 0, 1, 2, 3 });
+            var entries = new[]
+            {
+                new ItemEntry(0, "valid-image", "PNG-Testbild", "Materialien", valid),
+                new ItemEntry(1, "broken-image", "Beschädigtes Testbild", "Materialien", broken)
+            };
+            var picker = new ItemPicker(entries, selectedIndex: 0);
+            var host = new Grid();
+            host.Children.Add(picker);
+            Arrange(host, new Size(420, 640));
+            var list = Named<ListBox>(picker, "ItemList");
+            foreach (var entry in entries)
+            {
+                var row = (ListBoxItem)list.ItemContainerGenerator.ContainerFromItem(entry);
+                var icon = Descendants(row).OfType<Image>().Single(e => e.Name == "ItemIcon");
+                var badge = Descendants(row).OfType<Border>().Single(e => e.Name == "FallbackBadge");
+                Check(entry.Index == 0
+                    ? icon.Source != null && icon.Visibility == Visibility.Visible && badge.Visibility == Visibility.Collapsed
+                    : icon.Source == null && icon.Visibility == Visibility.Collapsed && badge.Visibility == Visibility.Visible,
+                    entry.Index == 0 ? "a decoded PNG replaces its fallback in the item template"
+                        : "a damaged PNG retains the visible item fallback without breaking the picker");
+            }
+        }
+        finally
+        {
+            File.Delete(valid);
+            File.Delete(broken);
+        }
+    }
+
+    private static void CheckItemPickerIntegration()
+    {
+        var window = new MainWindow(offline: true);
+        var option = new OptionInfo { Id = "item.was", Label = "Gegenstand", Kind = "Choice", Choices = new[] { "Fixture_Item_A", "Fixture_Item_B" }, ChoiceIndex = 0 };
+        FrameworkElement Build(string game, string id)
+        {
+            Set(window, "_connectedGameId", game);
+            option.Id = id;
+            var control = (FrameworkElement)typeof(MainWindow).GetMethod("BuildChoice", BindingFlags.NonPublic | BindingFlags.Instance)!
+                .Invoke(window, new object[] { option })!;
+            control.Measure(new Size(420, 500));
+            control.Arrange(new Rect(0, 0, 420, 500));
+            control.UpdateLayout();
+            return control;
+        }
+        IEnumerable<DependencyObject> IncludingSelf(DependencyObject element) => new[] { element }.Concat(Descendants(element));
+        var mortal = Build("MortalShell2", "item.was");
+        var picker = IncludingSelf(mortal).OfType<ItemPicker>().SingleOrDefault();
+        Check(picker != null, "Mortal Shell's item choice renders the item picker");
+        int changes = 0;
+        picker!.SelectionChanged += _ => changes++;
+        var refreshers = (Dictionary<string, Action<OptionInfo>>)Get(window, "_refreshers");
+        refreshers["item.was"](new OptionInfo { Id = "item.was", Kind = "Choice", Choices = option.Choices, ChoiceIndex = 1, Available = false });
+        Check(changes == 0 && !picker.IsEnabled && ((HashSet<string>)Get(window, "_angefasst")).Count == 0,
+            "IPC refresh updates item selection and availability without generating a user action");
+        Check(Named<ListBox>(picker, "ItemList").SelectedItem is ItemEntry { Index: 1 },
+            "item picker integration applies the original index from server state");
+        var ordinary = Build("MortalShell2", "other.choice");
+        Check(!IncludingSelf(ordinary).OfType<ItemPicker>().Any() && IncludingSelf(ordinary).OfType<ComboBox>().Any(),
+            "other Mortal Shell choices retain their existing control");
+        var otherGame = Build("ODDCORE", "item.was");
+        Check(!IncludingSelf(otherGame).OfType<ItemPicker>().Any() && IncludingSelf(otherGame).OfType<ComboBox>().Any(),
+            "another game's identically named choice retains its existing control");
+    }
+
+    private static void CheckItemPickerWindow(string? screenshot)
+    {
+        var window = new MainWindow(offline: true);
+        PopulateFixture(window);
+        var game = ((List<SupportedGame>)Get(window, "_games"))[1];
+        Set(window, "_selectedGame", game);
+        Set(window, "_connectedGameId", "MortalShell2");
+        Invoke(window, "BindGameList");
+        Named<TextBlock>(window, "GameLabel").Text = "Mortal Shell II";
+        Named<TextBlock>(window, "StatusLabel").Text = "UI-Vorschau · synthetische Auswahl · kein Spiel verbunden";
+        string[] choices = { "Gloom", "Coin", "Ventrium", "Dorsalite", "MushroomVillageKey", "Mango", "Weltcap" };
+        string metadataPath = Path.Combine(AppContext.BaseDirectory, "Assets", "MortalShell2", "items.json");
+        if (File.Exists(metadataPath))
+        {
+            using var metadata = JsonDocument.Parse(File.ReadAllText(metadataPath));
+            choices = metadata.RootElement.EnumerateObject().Select(item => item.Name).ToArray();
+        }
+        Set(window, "_categories", new List<CategoryInfo>
+        {
+            new() { Name = "Inventar", Options = new List<OptionInfo>
+            {
+                new() { Id = "item.was", Label = "Gegenstand", Kind = "Choice", ChoiceIndex = 2,
+                    Choices = choices },
+                new() { Id = "item.amount", Label = "Anzahl", Kind = "Number", NumberValue = 1, Min = 1, Max = 99 },
+                new() { Id = "item.add", Label = "Gegenstand hinzufügen", Kind = "Button" }
+            } }
+        });
+        Render(window);
+        var root = (Grid)window.Content;
+        var pane = Named<Border>(window, "OptionsPane");
+        var rows = Named<StackPanel>(window, "OptionsPanel");
+        var picker = Descendants(rows).OfType<ItemPicker>().Single();
+        var outerScroll = Descendants(pane).OfType<ScrollViewer>().Single(s => ReferenceEquals(s.Content, rows));
+        foreach (Size size in Sizes)
+        {
+            Arrange(root, size);
+            CheckLayout(window, root, size);
+            Rect area = Bounds(rows, root);
+            var controls = new FrameworkElement[]
+            {
+                Named<ComboBox>(picker, "CategoryFilter"), Named<TextBox>(picker, "ItemSearch"),
+                Named<ListBox>(picker, "ItemList"), Named<TextBlock>(picker, "SelectedItemName")
+            };
+            Check(controls.All(e => Bounds(e, root).Left >= area.Left - .5 && Bounds(e, root).Right <= area.Right + .5),
+                "embedded item picker remains horizontally reachable at " + size);
+            outerScroll.ScrollToEnd();
+            root.UpdateLayout();
+            Check(outerScroll.VerticalOffset >= outerScroll.ScrollableHeight - .5
+                && Inside(Bounds((FrameworkElement)rows.Children[rows.Children.Count - 1], root), Bounds(outerScroll, root)),
+                "inventory action remains reachable below the item picker at " + size);
+            outerScroll.ScrollToTop();
+            root.UpdateLayout();
+        }
+        if (screenshot != null)
+        {
+            SaveScreenshot(root, Sizes[2], Sibling(screenshot, "-full-overlay"));
+            SaveScreenshot(root, Sizes[0], Sibling(screenshot, "-full-overlay-small"));
+        }
+    }
+
     private static void Arrange(Grid root, Size size)
     {
         root.Measure(size);
@@ -254,7 +494,7 @@ internal static class Program
             foreach (var descendant in Descendants(child)) yield return descendant;
         }
     }
-    private static T Named<T>(MainWindow window, string name) where T : FrameworkElement =>
+    private static T Named<T>(FrameworkElement window, string name) where T : FrameworkElement =>
         window.FindName(name) as T ?? throw new Exception($"Missing {typeof(T).Name}: {name}");
     private static void Set(object target, string name, object value) =>
         target.GetType().GetField(name, BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(target, value);

@@ -1,0 +1,195 @@
+{
+  "Gloom": {
+    "icon": "icons/Gloom.png"
+  },
+  "Coin": {},
+  "Glimpses": {
+    "icon": "icons/Glimpses.png"
+  },
+  "Ova": {},
+  "AshMartyrs": {
+    "icon": "icons/AshMartyrs.png"
+  },
+  "Bloodseed": {
+    "icon": "icons/Bloodseed.png"
+  },
+  "BurnedEffigy": {
+    "icon": "icons/BurnedEffigy.png"
+  },
+  "StrangeGear": {
+    "icon": "icons/StrangeGear.png"
+  },
+  "HealingAmount": {
+    "icon": "icons/HealingAmount.png"
+  },
+  "HealingCharge": {},
+  "Mango": {
+    "icon": "icons/Mango.png"
+  },
+  "Moonshine": {},
+  "BagheadMoonshine": {},
+  "Tarspore": {},
+  "ParadoxicalScripture": {},
+  "UniqueScripture": {},
+  "Weltcap": {},
+  "Trollweed": {
+    "icon": "icons/Trollweed.png"
+  },
+  "Sheep": {},
+  "Grisha": {
+    "icon": "icons/Grisha.png"
+  },
+  "Ventrium": {
+    "icon": "icons/Ventrium.png"
+  },
+  "Laterite": {
+    "icon": "icons/Laterite.png"
+  },
+  "Dorsalite": {
+    "icon": "icons/Dorsalite.png"
+  },
+  "Thoracium": {
+    "icon": "icons/Thoracium.png"
+  },
+  "ThoraciumPrime": {
+    "icon": "icons/ThoraciumPrime.png"
+  },
+  "Tarcore": {
+    "icon": "icons/Tarcore.png"
+  },
+  "CommonArtifact": {
+    "icon": "icons/CommonArtifact.png"
+  },
+  "RareArtifact": {
+    "icon": "icons/RareArtifact.png"
+  },
+  "AncientArtifact": {
+    "icon": "icons/AncientArtifact.png"
+  },
+  "EpicArtifact": {
+    "icon": "icons/EpicArtifact.png"
+  },
+  "PearlArtifact": {
+    "icon": "icons/PearlArtifact.png"
+  },
+  "LegendaryArtifact": {
+    "icon": "icons/LegendaryArtifact.png"
+  },
+  "Specimen": {
+    "icon": "icons/Specimen.png"
+  },
+  "MushroomVillageKey": {
+    "icon": "icons/MushroomVillageKey.png"
+  },
+  "MissingLever": {
+    "icon": "icons/MissingLever.png"
+  },
+  "MissingCannonBall": {
+    "icon": "icons/MissingCannonBall.png"
+  },
+  "GraveyardCryptKey": {
+    "icon": "icons/GraveyardCryptKey.png"
+  },
+  "GrishaCageKey": {
+    "icon": "icons/GrishaCageKey.png"
+  },
+  "TreasureRoomKeyTiel": {
+    "icon": "icons/TreasureRoomKeyTiel.png"
+  },
+  "Censer": {},
+  "TarforgeUnlockWeapon": {},
+  "TarforgeUnlockSidearm": {},
+  "TarforgeUnlockSmelt": {},
+  "TarforgeUnlockTemper": {},
+  "MapLocationHeavyHammer": {
+    "icon": "icons/MapLocationHeavyHammer.png"
+  },
+  "MapLocationMartyrBlade": {
+    "icon": "icons/MapLocationMartyrBlade.png"
+  },
+  "MapLocationAxeDagger": {
+    "icon": "icons/MapLocationAxeDagger.png"
+  },
+  "MapLocationBlackNeedle": {
+    "icon": "icons/MapLocationBlackNeedle.png"
+  },
+  "Grimoire": {
+    "icon": "icons/Grimoire.png"
+  },
+  "FastTravel": {
+    "icon": "icons/FastTravel.png"
+  },
+  "MarrowKey": {
+    "icon": "icons/MarrowKey.png"
+  },
+  "EndlessCore": {
+    "icon": "icons/EndlessCore.png"
+  },
+  "VlasCageKey": {
+    "icon": "icons/VlasCageKey.png"
+  },
+  "FoundryStone": {},
+  "MuradeanActuator": {},
+  "EtchingNeedles": {},
+  "ObsidianLathe": {},
+  "FinalBossArtifact": {
+    "icon": "icons/FinalBossArtifact.png"
+  },
+  "TwisSestersArtifact": {
+    "icon": "icons/TwisSestersArtifact.png"
+  },
+  "MonolithArtifact": {
+    "icon": "icons/MonolithArtifact.png"
+  },
+  "OffspringArtifact": {
+    "icon": "icons/OffspringArtifact.png"
+  },
+  "ParasiteGolemArtifact": {
+    "icon": "icons/ParasiteGolemArtifact.png"
+  },
+  "MethersFlesh": {
+    "icon": "icons/MethersFlesh.png"
+  },
+  "FireGland": {
+    "icon": "icons/FireGland.png"
+  },
+  "CathedralGland": {
+    "icon": "icons/CathedralGland.png"
+  },
+  "SnowGland": {
+    "icon": "icons/SnowGland.png"
+  },
+  "ThestusFlame": {
+    "icon": "icons/ThestusFlame.png"
+  },
+  "IceCrown": {
+    "icon": "icons/IceCrown.png"
+  },
+  "VoltaicEssence": {
+    "icon": "icons/VoltaicEssence.png"
+  },
+  "VartkoFeetPic1": {
+    "icon": "icons/VartkoFeetPic1.png"
+  },
+  "VartkoFeetPic2": {
+    "icon": "icons/VartkoFeetPic2.png"
+  },
+  "VartkoFeetPic3": {
+    "icon": "icons/VartkoFeetPic3.png"
+  },
+  "VartkoFeetPic4": {
+    "icon": "icons/VartkoFeetPic4.png"
+  },
+  "VartkoFeetPic5": {
+    "icon": "icons/VartkoFeetPic5.png"
+  },
+  "VartkoFeetPic6": {
+    "icon": "icons/VartkoFeetPic6.png"
+  },
+  "VatraHeart": {
+    "icon": "icons/VatraHeart.png"
+  },
+  "ShellRespec": {
+    "icon": "icons/ShellRespec.png"
+  }
+}

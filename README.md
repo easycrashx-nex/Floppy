@@ -1,4 +1,4 @@
-# Floppy 1.3.2
+# Floppy 1.4.0
 
 Floppy ist ein modulares Windows-Modmenü mit Desktop-App und externem Overlay.
 Die Module definieren ihre Optionen einmal; Desktop und Overlay verwenden dieselbe Oberfläche.
@@ -11,6 +11,8 @@ Version 1.3.1 repariert den Mortal-Shell-II-Adapter für aktualisierte Spielfass
 meldet Zugriffsfehler verständlich: [Änderungen 1.3.1](docs/Aenderungen-1.3.1.md).
 Version 1.3.2 erkennt auch das Fenster eines erhöht gestarteten Spiels mit normalen
 Benutzerrechten: [Änderungen 1.3.2](docs/Aenderungen-1.3.2.md).
+Version 1.4.0 ergänzt für Mortal Shell II einen Gegenstandskatalog mit Kategorien,
+Itemsuche und Bildern: [Änderungen 1.4.0](docs/Aenderungen-1.4.0.md).
 
 Für Mortal Shell II bleibt die vom Spiel mitgelieferte `.pdb` neben der eigentlichen
 Spiel-EXE erforderlich. Floppy liest daraus die zur EXE passenden Adressen lokal.
@@ -36,7 +38,7 @@ Ein erfolgreicher Build bestätigt keine Funktion im laufenden Spiel.
 ## Benutzen
 
 Das vollständige Release-ZIP in einen eigenen Ordner entpacken und `Floppy.exe` starten.
-Den Ordner `runtime` und die übrigen Dateien neben der EXE behalten. Das eigenständige
+Die Ordner `runtime`, `Assets` und die übrigen Dateien neben der EXE behalten. Das eigenständige
 Windows-x64-Release bringt die .NET-Laufzeit mit; ein normaler Entwicklerbuild benötigt
 .NET 8 Desktop Runtime.
 
@@ -50,6 +52,9 @@ Alternativ öffnet die Schaltfläche **Overlay** die Oberfläche über dem verbu
 
 - **Suche:** sucht im Optionsbestand; `Strg+F` fokussiert die Suche, auch im Overlay.
 - **Favoriten:** der Stern an einer Option speichert sie pro Spiel im Bereich Favoriten.
+- **Mortal-Shell-II-Gegenstände:** Kategorie wählen, Itemnamen suchen und den gewünschten
+  Eintrag anklicken. Die Auswahl unter der Liste zeigt, welches Item **Ins Inventar legen**
+  verwenden wird. Ein Filterwechsel ändert diese Auswahl nicht.
 - **Tastenkürzel:** Rechtsklick auf den Stern weist einer Toggle-/Button-Option ein Kürzel mit Strg oder Alt zu. Es wirkt bei aktivem Spiel oder aktiver Floppy-App.
 - **Diagnose:** zeigt Installationszustand, fehlende/geänderte Dateien und Verbindungsinformationen.
 - **Spielordner:** manuell gewählte Ordner können wieder auf Steam-Erkennung zurückgestellt werden.
@@ -118,7 +123,7 @@ dotnet build src/Floppy.App/Floppy.App.csproj -c Release
 dotnet build src/Floppy.App/Floppy.App.csproj -c Release -p:BuildGameModules=false
 
 # Vollständiges eigenständiges Windows-Paket:
-dotnet publish src/Floppy.App/Floppy.App.csproj -c Release -r win-x64 --self-contained true -o artifacts/Floppy-1.3.0-win-x64
+dotnet publish src/Floppy.App/Floppy.App.csproj -c Release -r win-x64 --self-contained true -o artifacts/Floppy-1.4.0-win-x64
 
 # Bauen und How to Fish einrichten – Build erfolgt vor jeder Spieländerung:
 .\deploy.ps1 -GameDir "D:\SteamLibrary\steamapps\common\How to Fish\How to Fish" -App
@@ -142,10 +147,10 @@ dotnet run --project tests/Floppy.Install.Tests -c Release
 python -m unittest discover -s tools -p "test_rauchtest.py"
 
 # Zusätzlich das tatsächliche Publish-Paket auf Vollständigkeit prüfen:
-dotnet run --project tests/Floppy.Install.Tests -c Release -- artifacts/Floppy-1.3.0-win-x64
+dotnet run --project tests/Floppy.Install.Tests -c Release -- artifacts/Floppy-1.4.0-win-x64
 
 # Die ausgelieferte EXE selbst prüfen (ohne Spielzugriff oder sichtbares Fenster):
-.\artifacts\Floppy-1.3.0-win-x64\Floppy.exe --self-test "$env:TEMP\floppy-self-test.txt"
+.\artifacts\Floppy-1.4.0-win-x64\Floppy.exe --self-test "$env:TEMP\floppy-self-test.txt"
 
 # P.I.T.T.-Backend zusätzlich mit einer vorhandenen Godot-4-Konsole prüfen:
 .\tools\test-pitt.ps1 -Godot "C:\Pfad\Godot_console.exe"
