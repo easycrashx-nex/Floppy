@@ -27,6 +27,7 @@ namespace Floppy.Unreal
         private ulong _letzteWeltKennung;
         private bool _wiederherstellungAusstehend;
         private string _attributSchema = "";
+        private string _initialisierungsFehler = "";
 
         public MortalShellModule() : this(new Spiel()) { }
         internal MortalShellModule(Spiel spiel) { _spiel = spiel; }
@@ -46,20 +47,32 @@ namespace Floppy.Unreal
 
         public void Initialize()
         {
-            _spiel.Verbinde();
+            try { _spiel.Verbinde(); _initialisierungsFehler = ""; }
+            catch (Exception ex) { _initialisierungsFehler = ex.Message; }
         }
 
         public bool IsReady(out string status)
         {
+            try { return PruefeBereit(out status); }
+            catch (Exception ex) { _initialisierungsFehler = ex.Message; status = ex.Message; return false; }
+        }
+
+        private bool PruefeBereit(out string status)
+        {
+            if (!string.IsNullOrEmpty(_initialisierungsFehler))
+            {
+                status = _initialisierungsFehler;
+                return false;
+            }
             if (!_spiel.Verbunden)
             {
-                status = "Mortal Shell II läuft nicht";
+                status = string.IsNullOrEmpty(_spiel.LetzterFehler) ? "Mortal Shell II läuft nicht" : _spiel.LetzterFehler;
                 return false;
             }
 
             if (!_spiel.Bereit)
             {
-                status = "Warte auf geladenes Spiel";
+                status = string.IsNullOrEmpty(_spiel.LetzterFehler) ? "Warte auf geladenes Spiel" : _spiel.LetzterFehler;
                 return false;
             }
 
@@ -77,6 +90,12 @@ namespace Floppy.Unreal
         }
 
         internal void Aktualisiere()
+        {
+            try { AktualisiereIntern(); _initialisierungsFehler = ""; }
+            catch (Exception ex) { _initialisierungsFehler = ex.Message; }
+        }
+
+        private void AktualisiereIntern()
         {
             if (!_spiel.Verbunden)
             {
@@ -102,7 +121,7 @@ namespace Floppy.Unreal
             if (gewechselt || _wiederherstellungAusstehend)
             {
                 if (!SucheUndAktualisiere()) return;
-                if (_wiederherstellungAusstehend && NachLadenWiederSetzen) WendeWiederAn();
+                if (_wiederherstellungAusstehend && NachLadenWiederSetzen && WendeWiederAn() < AnzahlWiederherstellbarerWerte()) return;
                 _wiederherstellungAusstehend = false;
             }
 
@@ -140,12 +159,16 @@ namespace Floppy.Unreal
                 var option = Registry.Find(id);
                 if (option == null) continue;
 
-                try { option.NotifyChanged(); gemacht++; }
-                catch (Exception) { }
+                option.Message = "";
+                option.MessageIsError = false;
+                try { option.NotifyChanged(); if (!option.MessageIsError) gemacht++; }
+                catch (Exception ex) { option.Fail(ex.Message); }
             }
 
             return gemacht;
         }
+
+        private int AnzahlWiederherstellbarerWerte() => _gesetzt.Count(id => Registry.Find(id) != null);
 
         /// <summary>Die Anzeigezeilen nachziehen - sie haben nichts zum Anklicken.</summary>
         private void Anzeigen()
@@ -177,6 +200,10 @@ namespace Floppy.Unreal
                 raus.Add(AusSatz(satz));
 
             if (_spiel.Speicherstand.Count > 0) raus.Add(Fortschritt());
+
+            foreach (var option in raus.SelectMany(k => k.Options))
+                if (option.Kind != OptionKind.Info && option.Id != "info.neusuchen" && option.Id != "info.wiedersetzen")
+                    option.IsAvailable = () => IsReady(out _);
 
             _attributSchema = AttributSchema();
             return raus;
@@ -229,7 +256,10 @@ namespace Floppy.Unreal
                             Label = e.Label,
                             Description = e.Hinweis,
                             Kind = OptionKind.Toggle,
-                            OnChanged = o => o.Message = _spiel.RufeCheat(e, o.BoolValue ? 1 : 0)
+                            OnChanged = o =>
+                            {
+                                if (PruefeAktion(o)) MeldeErgebnis(o, _spiel.RufeCheat(e, o.BoolValue ? 1 : 0), "Erledigt");
+                            }
                         });
 
                         continue;
@@ -245,11 +275,12 @@ namespace Floppy.Unreal
                         Kind = OptionKind.Button,
                         OnInvoke = o =>
                         {
+                            if (!PruefeAktion(o)) return;
                             double wert = e.Parameter == Cheats.Art.Ohne
                                 ? 0
                                 : (feld?.NumberValue ?? e.Vorgabe);
 
-                            o.Message = _spiel.RufeCheat(e, wert);
+                            MeldeErgebnis(o, _spiel.RufeCheat(e, wert), "Erledigt");
                         }
                     });
                 }
@@ -299,9 +330,13 @@ namespace Floppy.Unreal
                 Description = "Nach einem Ladebildschirm passiert das von selbst - " +
                               "hier nur, falls doch mal etwas nicht stimmt.",
                 Kind = OptionKind.Button,
-                OnInvoke = o => o.Message = SucheUndAktualisiere()
-                    ? _spiel.AnzahlWerte + " Werte gefunden"
-                    : "Keine Figur gefunden"
+                OnInvoke = o =>
+                {
+                    Aktualisiere();
+                    if (!IsReady(out string status)) { o.Fail(status); return; }
+                    if (SucheUndAktualisiere()) o.Message = _spiel.AnzahlWerte + " Werte gefunden";
+                    else o.Fail(string.IsNullOrEmpty(_spiel.LetzterFehler) ? "Keine Figur gefunden" : _spiel.LetzterFehler);
+                }
             });
 
             k.Add(new CheatOption
@@ -323,8 +358,11 @@ namespace Floppy.Unreal
                 Kind = OptionKind.Button,
                 OnInvoke = o =>
                 {
+                    if (!PruefeAktion(o)) return;
                     int n = WendeWiederAn();
-                    o.Message = n == 0 ? "Du hast noch nichts gesetzt" : n + " Werte wieder gesetzt";
+                    int erwartet = AnzahlWiederherstellbarerWerte();
+                    if (n < erwartet) o.Fail(n + " von " + erwartet + " Werten wieder gesetzt; mindestens ein Schreibvorgang ist fehlgeschlagen");
+                    else o.Message = n == 0 ? "Du hast noch nichts gesetzt" : n + " Werte wieder gesetzt";
                 }
             });
 
@@ -335,12 +373,15 @@ namespace Floppy.Unreal
                 Kind = OptionKind.Button,
                 OnInvoke = o =>
                 {
+                    if (!PruefeAktion(o)) return;
                     var leben = _spiel.Finde("SpartaHealthSet", "Health");
                     var max = _spiel.Finde("SpartaHealthSet", "MaxHealth");
 
-                    if (leben == null || max == null) { o.Message = "Keine Figur"; return; }
+                    if (leben == null || max == null) { o.Fail("Keine Figur"); return; }
 
-                    leben.Setze(_spiel.Sp, max.Wert(_spiel.Sp));
+                    float maximum = max.Wert(_spiel.Sp);
+                    if (!float.IsFinite(maximum) || maximum <= 0) { o.Fail("Maximalleben konnte nicht zuverlässig gelesen werden"); return; }
+                    if (!leben.Setze(_spiel.Sp, maximum)) { MeldeSchreibfehler(o); return; }
                     o.Message = "Aufgefüllt";
                 }
             });
@@ -373,10 +414,11 @@ namespace Floppy.Unreal
                     NumberValue = attribut.Wert(_spiel.Sp),
                     OnChanged = o =>
                     {
-                        _gesetzt.Add(o.Id);
-
+                        if (!PruefeAktion(o)) return;
                         var jetzt = _spiel.Finde(wo, was);
-                        if (jetzt != null) jetzt.Setze(_spiel.Sp, o.NumberValue);
+                        if (jetzt == null) { o.Fail("Attribut ist nicht mehr verfügbar: " + was); return; }
+                        if (!jetzt.Setze(_spiel.Sp, o.NumberValue)) { MeldeSchreibfehler(o); return; }
+                        _gesetzt.Add(o.Id);
                     }
                 });
             }
@@ -412,10 +454,11 @@ namespace Floppy.Unreal
                     NumberValue = (float)zahl.Wert(_spiel.Sp),
                     OnChanged = o =>
                     {
-                        _gesetzt.Add(o.Id);
-
+                        if (!PruefeAktion(o)) return;
                         var jetzt = _spiel.Speicherstand.FirstOrDefault(e => e.Name == was);
-                        if (jetzt != null) jetzt.Setze(_spiel.Sp, o.NumberValue);
+                        if (jetzt == null) { o.Fail("Speicherstandwert ist nicht mehr verfügbar: " + was); return; }
+                        if (!jetzt.Setze(_spiel.Sp, o.NumberValue)) { MeldeSchreibfehler(o); return; }
+                        _gesetzt.Add(o.Id);
                     }
                 });
             }
@@ -456,13 +499,14 @@ namespace Floppy.Unreal
                 Kind = OptionKind.Button,
                 OnInvoke = o =>
                 {
+                    if (!PruefeAktion(o)) return;
                     var liste = _spiel.Gegenstaende;
-                    if (liste.Count == 0) { o.Message = "Tabelle noch nicht geladen"; return; }
+                    if (liste.Count == 0) { o.Fail("Tabelle noch nicht geladen"); return; }
 
                     var ziel = liste[Math.Clamp(auswahl.ChoiceIndex, 0, liste.Count - 1)];
-                    bool gut = _spiel.GibGegenstand(ziel.Kennung, (int)menge.NumberValue) == "Erledigt";
-
-                    o.Message = gut ? ziel.Name + " dazu" : "Ging nicht";
+                    string ergebnis = _spiel.GibGegenstand(ziel.Kennung, (int)menge.NumberValue);
+                    if (ergebnis == "Erledigt") o.Message = ziel.Name + " dazu";
+                    else o.Fail(ergebnis);
                 }
             });
 
@@ -515,8 +559,9 @@ namespace Floppy.Unreal
                 Kind = OptionKind.Button,
                 OnInvoke = o =>
                 {
+                    if (!PruefeAktion(o)) return;
                     var (x, y, z) = _spiel.Position();
-                    if (x == 0 && y == 0 && z == 0) { o.Message = "Keine Figur"; return; }
+                    if (x == 0 && y == 0 && z == 0) { o.Fail("Keine Figur"); return; }
 
                     string wie = (name.TextValue ?? "").Trim();
                     if (wie.Length == 0) wie = "Ort " + (_orte.Count + 1);
@@ -539,12 +584,14 @@ namespace Floppy.Unreal
                 Kind = OptionKind.Button,
                 OnInvoke = o =>
                 {
-                    if (_orte.Count == 0) { o.Message = "Noch nichts gemerkt"; return; }
+                    if (!PruefeAktion(o)) return;
+                    if (_orte.Count == 0) { o.Fail("Noch nichts gemerkt"); return; }
 
                     var ziel = _orte[Math.Clamp(liste.ChoiceIndex, 0, _orte.Count - 1)];
                     string ergebnis = _spiel.SetzePosition(ziel.X, ziel.Y, ziel.Z);
 
-                    o.Message = ergebnis == "Umgesetzt" ? "Bei \"" + ziel.Name + "\"" : ergebnis;
+                    if (ergebnis == "Umgesetzt") o.Message = "Bei \"" + ziel.Name + "\"";
+                    else o.Fail(ergebnis);
                 }
             });
 
@@ -564,6 +611,22 @@ namespace Floppy.Unreal
 
             return k;
         }
+
+        private bool PruefeAktion(CheatOption option)
+        {
+            if (IsReady(out string status)) return true;
+            option.Fail(status);
+            return false;
+        }
+
+        private static void MeldeErgebnis(CheatOption option, string ergebnis, string erfolg)
+        {
+            if (ergebnis == erfolg) option.Message = ergebnis;
+            else option.Fail(string.IsNullOrEmpty(ergebnis) ? "Spielaktion ist fehlgeschlagen" : ergebnis);
+        }
+
+        private void MeldeSchreibfehler(CheatOption option) => option.Fail(
+            string.IsNullOrEmpty(_spiel.Sp.LetzterFehler) ? "Spielwert konnte nicht geschrieben werden" : _spiel.Sp.LetzterFehler);
 
         /// <summary>Aus BaseKnockbackStrength wird "Base Knockback Strength".</summary>
         private static string Lesbar(string name)

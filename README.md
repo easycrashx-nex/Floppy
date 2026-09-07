@@ -1,4 +1,4 @@
-# Floppy 1.3
+# Floppy 1.3.1
 
 Floppy ist ein modulares Windows-Modmenü mit Desktop-App und externem Overlay.
 Die Module definieren ihre Optionen einmal; Desktop und Overlay verwenden dieselbe Oberfläche.
@@ -6,6 +6,16 @@ Die Module definieren ihre Optionen einmal; Desktop und Overlay verwenden diesel
 Version 1.3 bringt die Graphit-Mint-Oberfläche als externes Overlay ins Spiel.
 Die bisherigen Unity- und P.I.T.T.-Ingame-Menüs entfallen.
 Details und Grenzen: [Änderungen 1.3.0](docs/Aenderungen-1.3.0.md).
+
+Version 1.3.1 repariert den Mortal-Shell-II-Adapter für aktualisierte Spielfassungen und
+meldet Zugriffsfehler verständlich: [Änderungen 1.3.1](docs/Aenderungen-1.3.1.md).
+
+Für Mortal Shell II bleibt die vom Spiel mitgelieferte `.pdb` neben der eigentlichen
+Spiel-EXE erforderlich. Floppy liest daraus die zur EXE passenden Adressen lokal.
+Wenn das Spiel mit Administratorrechten läuft, in Floppy **Werkzeuge → Floppy als
+Administrator neu starten** wählen und die Windows-Abfrage bestätigen. Beide Programme
+mit normalen Benutzerrechten zu starten funktioniert ebenfalls. Für dieses externe Modul
+ist keine Installation oder Reparatur im Spielordner nötig.
 
 ## Spiele und Module
 

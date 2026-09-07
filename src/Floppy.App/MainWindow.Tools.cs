@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Security.Principal;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
@@ -180,8 +181,34 @@ public partial class MainWindow
     private void OnToolsClicked(object sender, RoutedEventArgs e)
     {
         var button = (Button)sender;
+        using var identity = WindowsIdentity.GetCurrent();
+        RestartElevatedItem.Visibility = (_connectedGameId == "MortalShell2" || _selectedGame?.ProductName == "MortalShell2")
+            && !new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator)
+            ? Visibility.Visible : Visibility.Collapsed;
+        RestartElevatedItem.IsEnabled = !_installing && !_closing;
         button.ContextMenu.PlacementTarget = button;
         button.ContextMenu.IsOpen = true;
+    }
+
+    private void OnRestartElevated(object sender, RoutedEventArgs e)
+    {
+        if (_installing || _closing) return;
+        try
+        {
+            SaveSettings();
+            var start = new ProcessStartInfo(Path.Combine(AppContext.BaseDirectory, "Floppy.exe"))
+            {
+                UseShellExecute = true,
+                Verb = "runas",
+                WorkingDirectory = AppContext.BaseDirectory
+            };
+            using var next = Process.Start(start);
+            if (next != null) Close();
+        }
+        catch (Win32Exception ex) when (ex.NativeErrorCode == 1223)
+        { SetStatus("Neustart abgebrochen. Floppy bleibt geöffnet.", false, transient: true); }
+        catch (Exception ex)
+        { SetStatus("Neustart nicht möglich: " + ex.Message, true, transient: true); }
     }
 
     private void OnDiagnose(object sender, RoutedEventArgs e)

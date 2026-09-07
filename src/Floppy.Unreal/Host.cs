@@ -56,21 +56,26 @@ namespace Floppy.Unreal
             // hier ein Zeitgeber.
             var modul = _modul;
             bool initialisiert = false;
-            _takt = new HostTakt(() =>
-            {
-                if (!initialisiert)
-                {
-                    modul.Initialize();
-                    initialisiert = true;
-                }
-
-                if (_takt.WirdBeendet) return;
-                Dispatcher.Pump();
-                if (!_takt.WirdBeendet) modul.Update();
-            }, modul.Dispose, ex => Log.Error("Unreal-Takt: " + ex.Message), 200, 200);
+            _takt = new HostTakt(() => Bediene(modul, ref initialisiert, () => _takt.WirdBeendet),
+                modul.Dispose, ex => Log.Error("Unreal-Takt: " + ex.Message), 200, 200);
 
             meldung = "Mortal Shell II angebunden";
             return true;
+        }
+
+        internal static void Bediene(MortalShellModule modul, ref bool initialisiert, Func<bool> wirdBeendet)
+        {
+            if (wirdBeendet()) return;
+            // Diagnose/schema requests must still complete when attaching to the
+            // game fails. Initialization retries belong to the module's slow tick.
+            Dispatcher.Pump();
+            if (wirdBeendet()) return;
+            if (!initialisiert)
+            {
+                initialisiert = true;
+                modul.Initialize();
+            }
+            if (!wirdBeendet()) modul.Update();
         }
 
         public static void Stoppe()

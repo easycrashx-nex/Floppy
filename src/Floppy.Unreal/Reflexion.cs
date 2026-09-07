@@ -86,7 +86,14 @@ namespace Floppy.Unreal
 
         // ---------------------------------------------------------------- Objekte
 
-        public int Anzahl => _s.I32(_guObjectArray + 0x10 + 0x14);
+        public int Anzahl
+        {
+            get
+            {
+                int count = _s.I32(_guObjectArray + 0x10 + 0x14);
+                return count is > 0 and <= 2_000_000 ? count : 0;
+            }
+        }
 
         public ulong Objekt(int i)
         {
@@ -174,16 +181,14 @@ namespace Floppy.Unreal
             return raus;
         }
 
-        /// <summary>Wo im Objekt der Wert liegt. Die Stelle wandert zwischen Fassungen,
-        /// deshalb zwei Kandidaten und der plausible gewinnt.</summary>
+        /// <summary>FProperty.Offset_Internal, confirmed from the shipped PDB's FProperty layout.
+        /// A failed read is not a valid zero offset; function parameters can legitimately start at zero.</summary>
         private int WertAbstand(ulong feld)
         {
-            foreach (int kandidat in new[] { 0x44, 0x4C })
-            {
-                int o = _s.I32(feld + (ulong)kandidat);
-                if (o >= 0 && o < 0x8000) return o;
-            }
-            return -1;
+            var bytes = _s.Lies(feld + 0x44, 4);
+            if (bytes == null) return -1;
+            int offset = BitConverter.ToInt32(bytes, 0);
+            return offset is >= 0 and < 0x8000 ? offset : -1;
         }
 
         public bool Finde(ulong objekt, string feldname, out Eigenschaft treffer)

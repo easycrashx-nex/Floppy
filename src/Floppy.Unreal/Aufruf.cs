@@ -51,9 +51,8 @@ namespace Floppy.Unreal
         [DllImport("kernel32.dll", SetLastError = true)]
         private static extern bool CloseHandle(IntPtr griff);
 
-        /// <summary>Die Stelle, durch die in Unreal jeder Funktionsaufruf läuft.
-        /// Aus der Symboldatei, die das Spiel mitliefert.</summary>
-        public const ulong RVA_PROCESSEVENT = 0x1619570;
+        // Resolved from the PDB matching this executable; never use an older build's address.
+        private readonly ulong _processEventRva;
 
         private const int PufferGroesse = 0x800;
 
@@ -72,10 +71,11 @@ namespace Floppy.Unreal
 
         public string LetzterFehler { get; private set; } = "";
 
-        public Aufruf(Speicher s, Reflexion r)
+        public Aufruf(Speicher s, Reflexion r, ulong processEventRva = 0)
         {
             _s = s;
             _r = r;
+            _processEventRva = processEventRva;
         }
 
         public bool Bereit => _griff != IntPtr.Zero && _parameter != 0 && _code != 0;
@@ -92,6 +92,7 @@ namespace Floppy.Unreal
             if (!VorherigerAufrufFertig()) return false;
             if (Bereit) return true;
             if (!_s.Offen) { LetzterFehler = "Kein Zugriff auf den Spielprozess"; return false; }
+            if (_processEventRva == 0) { LetzterFehler = "Die Spielversion wurde noch nicht geprüft"; return false; }
 
             _griff = OpenProcess(
                 PROCESS_CREATE_THREAD | PROCESS_QUERY_INFORMATION | PROCESS_VM_READ |
@@ -284,7 +285,7 @@ namespace Floppy.Unreal
             Konstante(new byte[] { 0x48, 0xB9 }, objekt);                       // mov rcx, objekt
             Konstante(new byte[] { 0x48, 0xBA }, funktion);                     // mov rdx, funktion
             Konstante(new byte[] { 0x49, 0xB8 }, _parameter);                   // mov r8, parameter
-            Konstante(new byte[] { 0x48, 0xB8 }, _s.Basis + RVA_PROCESSEVENT);  // mov rax, ProcessEvent
+            Konstante(new byte[] { 0x48, 0xB8 }, _s.Basis + _processEventRva);  // mov rax, ProcessEvent
 
             code.AddRange(new byte[] { 0x48, 0x83, 0xEC, 0x28 });               // sub rsp, 0x28
             code.AddRange(new byte[] { 0xFF, 0xD0 });                           // call rax

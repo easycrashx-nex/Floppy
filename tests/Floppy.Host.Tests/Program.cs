@@ -8,16 +8,18 @@ using Floppy.Hosting;
 using Floppy.Unreal;
 using Einstellungen = Unrailed::Floppy.Unrailed2.Einstellungen;
 
-// Ausschließlich synthetische Zustände: keine Spiele, kein IPC, keine Nutzereinstellungen.
+// Ausschließlich synthetische Zustände: keine Spiele, keine Sockets, keine Nutzereinstellungen.
 internal static class Program
 {
     private static async Task Main()
     {
         await Prüfe("Spieltakt überlappt nicht; Shutdown bleibt begrenzt", HostShutdown);
         await Prüfe("Timeout behält laufende Puffer bis zum Endsignal", RemoteLebenszyklus);
+        await Prüfe("Verweigerter Zugriff lässt Diagnoseaufträge weiterlaufen", InitialisierungFehlgeschlagen);
+        await Prüfe("Mortal Shell meldet abgewiesene Aktionen und verwirft falsche UI-Werte", AktionenFehlgeschlagen);
         await Prüfe("Mortal Shell ergänzt Schema und wiederholt Laden", SchemaUndLaden);
         await Prüfe("Einstellungsfehler bewahren Original und Sicherung", EinstellungenSichern);
-        Console.WriteLine("4/4 Host-Prüfungen erfolgreich.");
+        Console.WriteLine("6/6 Host-Prüfungen erfolgreich.");
     }
 
     private static async Task Prüfe(string name, Func<Task> test)
@@ -96,6 +98,87 @@ internal static class Program
     private static void SetzePrivat(object ziel, string name, object wert) =>
         ziel.GetType().GetField(name, BindingFlags.NonPublic | BindingFlags.Instance).SetValue(ziel, wert);
 
+    private static Task InitialisierungFehlgeschlagen()
+    {
+        var spiel = new FehlerSpiel();
+        using var modul = new MortalShellModule(spiel);
+        bool initialisiert = false;
+        int bedient = 0;
+        for (int i = 0; i < 4; i++)
+        {
+            Dispatcher.Enqueue(() => bedient++);
+            Host.Bediene(modul, ref initialisiert, () => false);
+        }
+        Wahr(bedient == 4, "Diagnoseaufträge dürfen bei fehlgeschlagener Initialisierung nicht verhungern");
+        Wahr(initialisiert && spiel.Versuche <= 2, "Fehlerhafte Initialisierung darf nicht in jedem 200-ms-Takt wiederholt werden");
+        Wahr(!modul.IsReady(out string status) && status.Contains("Zugriff verweigert") && status.Contains("5"),
+            "Zugriffsfehler muss als konkrete Bereitschaftsmeldung sichtbar bleiben");
+
+        spiel.Verweigert = false;
+        modul.Aktualisiere();
+        Wahr(!modul.IsReady(out status) && status == "Warte auf geladenes Spiel",
+            "Nach behobenem Zugriff muss der alte Fehler einer ehrlichen Ladeanzeige weichen");
+        Dispatcher.Enqueue(() => bedient++);
+        Host.Bediene(modul, ref initialisiert, () => true);
+        Wahr(bedient == 4, "Ein beendeter Host darf keine neue Arbeit beginnen");
+        Dispatcher.Pump(); // Nur den synthetischen Auftrag für nachfolgende Tests entfernen.
+        return Task.CompletedTask;
+    }
+
+    private static Task AktionenFehlgeschlagen()
+    {
+        using (var getrennt = new MortalShellModule())
+        {
+            var optionen = getrennt.BuildCategories().SelectMany(k => k.Options).ToList();
+            var gold = optionen.Single(o => o.Id == "cheat.S_AddGold");
+            Wahr(!gold.Available, "Ohne Verbindung dürfen Spielaktionen nicht verfügbar erscheinen");
+            gold.Fire();
+            Wahr(gold.MessageIsError && gold.Message.Contains("läuft nicht"), "Auch ein veralteter direkter Aufruf muss einen Fehler melden");
+            Wahr(optionen.Single(o => o.Id == "info.neusuchen").Available,
+                "Die Diagnose muss trotz nicht verfügbarem Spiel erreichbar bleiben");
+        }
+
+        // Die Fake-Figur liefert Metadaten, hat aber absichtlich keinen Speicherzugriff.
+        // Damit muss der tatsächliche Schreibpfad scheitern statt die UI zu bestätigen.
+        var spiel = new TestSpiel { FindetFigur = true };
+        spiel.Suche();
+        spiel.Speicherstand.Add(new Spiel.Zahl { Name = "Gold", Adresse = 0 });
+        using var modul = new MortalShellModule(spiel);
+        Registry.SetModule(modul);
+        string antwort = (string)typeof(IpcServer).GetMethod("ApplyInvoke", BindingFlags.NonPublic | BindingFlags.Static)
+            .Invoke(null, new object[] { "cheat.S_AddGold" });
+        Wahr(antwort.Contains("\"ok\":false") && antwort.Contains("Keine Spielsteuerung"),
+            "Fehlgeschlagene Entwickleraktion muss im echten IPC-Antwortpfad ok:false liefern");
+        PruefeSetFehler("cheat.S_BlockExperience", "bool", true);
+        Wahr(!Registry.Find("cheat.S_BlockExperience").BoolValue, "Abgewiesener Schalter muss seinen alten UI-Wert behalten");
+        PruefeSetFehler("attr.TestSet.Health", "number", 123.0);
+        Wahr(Registry.Find("attr.TestSet.Health").NumberValue == 0, "Fehlgeschlagener Attributwrite darf keinen neuen UI-Wert bestätigen");
+        PruefeSetFehler("stand.Gold", "number", 123.0);
+        Wahr(Registry.Find("stand.Gold").NumberValue == 0, "Fehlgeschlagener Speicherstandwrite darf keinen neuen UI-Wert bestätigen");
+        var gesetzt = (HashSet<string>)typeof(MortalShellModule).GetField("_gesetzt", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(modul);
+        Wahr(gesetzt.Count == 0, "Abgewiesene Werte dürfen nicht für automatische Wiederherstellung vorgemerkt werden");
+        gesetzt.Add("attr.TestSet.Health"); // Simuliert einen früher erfolgreichen Wert, dessen Ziel inzwischen fehlt.
+        Wahr(modul.WendeWiederAn() == 0 && Registry.Find("attr.TestSet.Health").MessageIsError,
+            "Ein fehlgeschlagener Wiederholungswrite darf nicht als Erfolg gezählt werden");
+        return Task.CompletedTask;
+    }
+
+    private static void PruefeSetFehler(string id, string key, object value)
+    {
+        var request = new Dictionary<string, object> { ["id"] = id, [key] = value };
+        bool fehlgeschlagen = false;
+        try
+        {
+            typeof(IpcServer).GetMethod("ApplySet", BindingFlags.NonPublic | BindingFlags.Static)
+                .Invoke(null, new object[] { request });
+        }
+        catch (TargetInvocationException ex) when (ex.InnerException is InvalidOperationException)
+        {
+            fehlgeschlagen = true;
+        }
+        Wahr(fehlgeschlagen && Registry.Find(id).MessageIsError, id + " muss die Änderung mit einem Fehler ablehnen");
+    }
+
     private static Task SchemaUndLaden()
     {
         var spiel = new TestSpiel();
@@ -108,7 +191,12 @@ internal static class Program
         var gesundheit = Registry.Find("attr.TestSet.Health");
         Wahr(gesundheit != null, "Später gefundene Attribute müssen im bestehenden Schema erscheinen");
         gesundheit.NumberValue = 123f;
-        gesundheit.NotifyChanged();
+        // Dieser Test prüft Ladeübergänge. Einen zuvor bestätigten Wert darstellen;
+        // Fehler des echten Schreibpfads werden separat in AktionenFehlgeschlagen geprüft.
+        ((HashSet<string>)typeof(MortalShellModule).GetField("_gesetzt", BindingFlags.NonPublic | BindingFlags.Instance)
+            .GetValue(modul)).Add(gesundheit.Id);
+        ((HashSet<string>)typeof(MortalShellModule).GetField("_gesetzt", BindingFlags.NonPublic | BindingFlags.Instance)
+            .GetValue(modul)).Add("attr.FrueheresSet.NichtMehrVorhanden");
 
         int angewandt = 0;
         gesundheit.OnChanged = _ => angewandt++;
@@ -201,6 +289,25 @@ internal static class Program
             if (ZweitesAttribut) Attribute.Add(new Attribut { Satz = "TestSet", Name = "Mana" });
             return true;
         }
+    }
+
+    private sealed class FehlerSpiel : Spiel
+    {
+        public bool Verweigert = true;
+        public int Versuche;
+        private bool _verbunden;
+        public override bool Verbunden => _verbunden;
+        public override bool Bereit => false;
+        public override string LetzterFehler => Verweigert ? "Zugriff verweigert (Win32 5)" : "";
+        public override bool Verbinde()
+        {
+            Versuche++;
+            if (Verweigert) throw new System.ComponentModel.Win32Exception(5, "Zugriff verweigert (Win32 5)");
+            _verbunden = true;
+            return true;
+        }
+        public override void Trenne() { _verbunden = false; }
+        public override bool Suche() => false;
     }
 
     private static class Native

@@ -14,9 +14,9 @@ namespace Floppy.Unreal
         public const string Prozess = "MortalShell2-Win64-Shipping";
         public const string Modul = "MortalShell2-Win64-Shipping.exe";
 
-        private const ulong RVA_OBJEKTE = 0xB03CF60;
-        private const ulong RVA_NAMEN = 0xAF59400;
-        private const ulong RVA_GWORLD = 0xB1CAE08;
+        private SpielAdressen _adressen;
+        private string _fehler = "";
+        public virtual string LetzterFehler => string.IsNullOrEmpty(_fehler) ? Sp.LetzterFehler : _fehler;
 
         /// <summary>Ein Attribut des Fähigkeitensystems: Grundwert und aktueller Wert,
         /// beide als float direkt hintereinander.</summary>
@@ -28,10 +28,9 @@ namespace Floppy.Unreal
 
             public float Wert(Speicher s) => s.F32(Adresse + 12);
 
-            public void Setze(Speicher s, float wert)
+            public bool Setze(Speicher s, float wert)
             {
-                s.SchreibeF32(Adresse + 8, wert);       // Grundwert
-                s.SchreibeF32(Adresse + 12, wert);      // aktueller Wert
+                return s.SchreibeF32(Adresse + 8, wert) && s.SchreibeF32(Adresse + 12, wert);
             }
         }
 
@@ -43,10 +42,9 @@ namespace Floppy.Unreal
 
             public double Wert(Speicher s) => IstFliess ? s.F64(Adresse) : s.I32(Adresse);
 
-            public void Setze(Speicher s, double wert)
+            public bool Setze(Speicher s, double wert)
             {
-                if (IstFliess) s.SchreibeF64(Adresse, wert);
-                else s.SchreibeI32(Adresse, (int)wert);
+                return IstFliess ? s.SchreibeF64(Adresse, wert) : s.SchreibeI32(Adresse, (int)wert);
             }
         }
 
@@ -80,7 +78,7 @@ namespace Floppy.Unreal
         public virtual bool Bereit => Sp.Offen && Ref != null && AnzahlWerte > 0 &&
                                       Figur != 0 && Ref.KlassenName(Figur) == "BP_PlayerCharacter_C";
 
-        public virtual ulong WeltKennung => Sp.Offen ? Sp.U64(Sp.Basis + RVA_GWORLD) : 0;
+        public virtual ulong WeltKennung => Sp.Offen && _adressen != null ? Sp.U64(Sp.Basis + _adressen.Welt) : 0;
         public virtual string Welt => Ref == null ? "" : Ref.ObjektName(WeltKennung);
 
         // ---------------------------------------------------------------- Anbinden
@@ -88,10 +86,22 @@ namespace Floppy.Unreal
         public virtual bool Verbinde()
         {
             Trenne();
+            _fehler = "";
             if (!Sp.Verbinde(Prozess, Modul)) return false;
 
-            Ref = new Reflexion(Sp, RVA_OBJEKTE, RVA_NAMEN);
-            Ruf = new Aufruf(Sp, Ref);
+            if (!SpielSymbole.TryResolve(Sp.Programmpfad, out _adressen, out _fehler))
+            {
+                Sp.Trenne();
+                return false;
+            }
+            Ref = new Reflexion(Sp, _adressen.Objekte, _adressen.Namen);
+            if (Ref.Name(0) != "None" || Ref.Anzahl <= 0)
+            {
+                _fehler = "Spielstruktur noch nicht lesbar. Warte bis das Hauptmenü geladen ist.";
+                Trenne();
+                return false;
+            }
+            Ruf = new Aufruf(Sp, Ref, _adressen.ProcessEvent);
             return Suche();
         }
 
@@ -101,6 +111,7 @@ namespace Floppy.Unreal
             Ruf = null;
             Sp.Trenne();
             Ref = null;
+            _adressen = null;
             Figur = 0;
             Steuerung = 0;
             Wurzel = 0;
@@ -137,7 +148,14 @@ namespace Floppy.Unreal
             // Das Entwicklermenü des Spiels hängt an der Steuerung, nicht an der Figur
             Steuerung = Ref.FindeErstes("BP_PlayerController_C");
 
-            Ref.Kalibriere(Figur);
+            if (!Ref.Kalibriere(Figur))
+            {
+                _fehler = "Die Felder dieser Spielfassung konnten nicht erkannt werden.";
+                Figur = 0;
+                Steuerung = 0;
+                return false;
+            }
+            _fehler = "";
 
             // Position
             Wurzel = Ref.Zeiger(Figur, "RootComponent");

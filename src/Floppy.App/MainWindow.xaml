@@ -140,6 +140,9 @@
                         <Button.ContextMenu>
                             <ContextMenu>
                                 <MenuItem Header="Diagnose anzeigen" Click="OnDiagnose"/>
+                                <MenuItem x:Name="RestartElevatedItem" Header="Floppy als Administrator neu starten…"
+                                          ToolTip="Bei Windows-Fehler 5, wenn das Spiel mit Administratorrechten läuft. Windows fragt nach deiner Bestätigung."
+                                          Click="OnRestartElevated"/>
                                 <MenuItem Header="Floppy einrichten / reparieren" Click="OnRepair"/>
                                 <MenuItem Header="Installation wiederherstellen" Click="OnRestore"/>
                                 <Separator/>
