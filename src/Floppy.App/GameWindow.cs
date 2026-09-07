@@ -3,6 +3,8 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Text;
+using Microsoft.Win32.SafeHandles;
 
 namespace Floppy.App;
 
@@ -94,13 +96,18 @@ internal static class GameWindow
         started = 0;
         try
         {
-            using var process = Process.GetProcessById(processId);
-            if (process.HasExited) return false;
-            started = process.StartTime.ToUniversalTime().Ticks;
+            // MainModule requires memory access and fails for an elevated game. Window
+            // identity needs only metadata; keep path and creation time on the same handle.
+            using var process = Native.OpenProcess(0x1000, false, processId); // PROCESS_QUERY_LIMITED_INFORMATION
+            if (process.IsInvalid || !Native.GetExitCodeProcess(process, out uint exitCode) || exitCode != 259 ||
+                !Native.GetProcessTimes(process, out long created, out _, out _, out _)) return false;
+            started = DateTime.FromFileTimeUtc(created).Ticks;
             if (installDir == null) return true;
-            string? executable = process.MainModule?.FileName;
+            var path = new StringBuilder(32768);
+            uint length = (uint)path.Capacity;
+            if (!Native.QueryFullProcessImageNameW(process, 0, path, ref length) || length == 0) return false;
             string prefix = Path.GetFullPath(installDir).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
-            return executable != null && Path.GetFullPath(executable).StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
+            return Path.GetFullPath(path.ToString()).StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
         }
         catch (Exception ex) when (Unavailable(ex)) { return false; }
     }
@@ -139,6 +146,10 @@ internal static class GameWindow
 
     private static class Native
     {
+        [DllImport("kernel32.dll", SetLastError = true)] internal static extern SafeProcessHandle OpenProcess(uint access, [MarshalAs(UnmanagedType.Bool)] bool inherit, int processId);
+        [DllImport("kernel32.dll")] [return: MarshalAs(UnmanagedType.Bool)] internal static extern bool GetExitCodeProcess(SafeProcessHandle process, out uint exitCode);
+        [DllImport("kernel32.dll")] [return: MarshalAs(UnmanagedType.Bool)] internal static extern bool GetProcessTimes(SafeProcessHandle process, out long creation, out long exit, out long kernel, out long user);
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)] [return: MarshalAs(UnmanagedType.Bool)] internal static extern bool QueryFullProcessImageNameW(SafeProcessHandle process, uint flags, StringBuilder path, ref uint size);
         [StructLayout(LayoutKind.Sequential)] internal struct Point { public int X, Y; }
         [StructLayout(LayoutKind.Sequential)] internal struct Rect { public int Left, Top, Right, Bottom; }
         [StructLayout(LayoutKind.Sequential)] internal struct MonitorInfo { public int Size; public Rect Monitor, Work; public uint Flags; }

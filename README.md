@@ -1,4 +1,4 @@
-# Floppy 1.3.1
+# Floppy 1.3.2
 
 Floppy ist ein modulares Windows-Modmenü mit Desktop-App und externem Overlay.
 Die Module definieren ihre Optionen einmal; Desktop und Overlay verwenden dieselbe Oberfläche.
@@ -9,6 +9,8 @@ Details und Grenzen: [Änderungen 1.3.0](docs/Aenderungen-1.3.0.md).
 
 Version 1.3.1 repariert den Mortal-Shell-II-Adapter für aktualisierte Spielfassungen und
 meldet Zugriffsfehler verständlich: [Änderungen 1.3.1](docs/Aenderungen-1.3.1.md).
+Version 1.3.2 erkennt auch das Fenster eines erhöht gestarteten Spiels mit normalen
+Benutzerrechten: [Änderungen 1.3.2](docs/Aenderungen-1.3.2.md).
 
 Für Mortal Shell II bleibt die vom Spiel mitgelieferte `.pdb` neben der eigentlichen
 Spiel-EXE erforderlich. Floppy liest daraus die zur EXE passenden Adressen lokal.
