@@ -29,7 +29,6 @@ namespace Floppy.Unrailed2
         // common.Unrailed2.Modules.Base.CheatSingleton
         public const string Singleton = "-486817492";
 
-        private const string AddBolts = "-70839394";
         private const string DisableTrainCrash = "953417568";
         private const string DisableTrainBurning = "-1773927608";
         private const string DisableTrainRunning = "1439690848";
@@ -67,7 +66,7 @@ namespace Floppy.Unrailed2
         public static string Zustand => !Debugger.Erreichbar ? Debugger.Zustand
             : !Welt.ImSpiel ? "Noch keine laufende Partie"
             : Verfuegbar ? "Zug-, Bau- und Automatikoptionen verfügbar"
-            : "Runde erkannt; das Spiel stellt Zug-, Bau- und Automatikoptionen nicht bereit";
+            : "Runde erkannt; zusätzliche Entwickleroptionen werden vom Spiel nicht bereitgestellt";
 
         // ------------------------------------------------------------------ Schreiben
 
@@ -193,49 +192,6 @@ namespace Floppy.Unrailed2
                 Scope = CheatScope.Everyone,
                 IsAvailable = () => Verfuegbar,
                 OnChanged = o => o.Message = Schalte(SkipBeacons, o.BoolValue, "Stationen überspringen")
-            });
-
-            return k;
-        }
-
-        public static CheatCategory Muttern()
-        {
-            var k = new CheatCategory("Muttern");
-
-            k.Add(new CheatOption
-            {
-                Id = "mut.jetzt",
-                Label = "Bestand",
-                Kind = OptionKind.Info,
-                IsAvailable = () => Verfuegbar,
-                OnChanged = o => o.TextValue = Lies(AddBolts)
-            });
-
-            k.Add(new CheatOption
-            {
-                Id = "mut.menge",
-                Label = "Wie viele",
-                Kind = OptionKind.Number,
-                Scope = CheatScope.Everyone,
-                IsAvailable = () => Verfuegbar,
-                Min = 0f, Max = 100000f, Step = 10f,
-                NumberValue = 100f,
-                Ruhewert = 100f
-            });
-
-            k.Add(new CheatOption
-            {
-                Id = "mut.geben",
-                Label = "Muttern geben",
-                Description = "Das Feld AddBolts des Spiels - es zählt dazu, statt zu ersetzen.",
-                Kind = OptionKind.Button,
-                Scope = CheatScope.Everyone,
-                IsAvailable = () => Verfuegbar,
-                OnInvoke = o =>
-                {
-                    float menge = Registry.Find("mut.menge")?.NumberValue ?? 100f;
-                    o.Message = SetzeZahl(AddBolts, menge, "Muttern");
-                }
             });
 
             return k;

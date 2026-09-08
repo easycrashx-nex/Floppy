@@ -41,6 +41,8 @@ namespace Floppy.Unrailed2
         public void Initialize()
         {
             Cheats.VergissSnapshot();
+            Muttern.Vergiss();
+            ZugAktionen.Vergiss();
             _art = null;
             _felder = new List<Feld>();
         }
@@ -49,6 +51,8 @@ namespace Floppy.Unrailed2
         {
             Welt.Aktualisiere();
             Cheats.AktualisiereSnapshot();
+            Muttern.Aktualisiere();
+            ZugAktionen.Aktualisiere();
             ListenPflegen();
             foreach (var option in Registry.AllOptions)
             {
@@ -88,7 +92,8 @@ namespace Floppy.Unrailed2
 
             status = !Welt.ImSpiel ? "Verbunden - noch im Menü"
                 : Cheats.Verfuegbar ? "Bereit - " + Welt.Lage
-                : Welt.Lage + " - Zug-/Bauoptionen vom Spiel nicht bereitgestellt";
+                : Muttern.Verfuegbar ? "Bereit - " + Welt.Lage + " (zusätzliche Entwickleroptionen nicht verfügbar)"
+                : Welt.Lage + " - noch keine verfügbaren Teamfunktionen";
             return true;
         }
 
@@ -97,9 +102,9 @@ namespace Floppy.Unrailed2
             return new List<CheatCategory>
             {
                 Zugang(),
-                Cheats.Zug(),
+                Zug(),
                 Cheats.Bauen(),
-                Cheats.Muttern(),
+                Muttern.Kategorie(),
                 Cheats.Automatik(),
                 Werte(),
                 Spielstaende(),
@@ -108,6 +113,13 @@ namespace Floppy.Unrailed2
         }
 
         private static Func<bool> ImSpiel => () => Debugger.Erreichbar && Welt.ImSpiel;
+
+        private static CheatCategory Zug()
+        {
+            var k = ZugAktionen.Kategorie();
+            k.Options.AddRange(Cheats.Zug().Options);
+            return k;
+        }
 
         // ==================================================================== Zugang
 
@@ -132,7 +144,7 @@ namespace Floppy.Unrailed2
             k.Add(new CheatOption
             {
                 Id = "u2.funktionen",
-                Label = "Funktionen der Runde",
+                Label = "Zusätzliche Entwickleroptionen",
                 Kind = OptionKind.Info,
                 OnChanged = o => o.TextValue = Cheats.Zustand
             });

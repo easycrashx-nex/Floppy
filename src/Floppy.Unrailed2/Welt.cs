@@ -60,6 +60,7 @@ namespace Floppy.Unrailed2
         private static List<Komponentenart> _registriert = new List<Komponentenart>();
         private static DateTime _artenGeholt = DateTime.MinValue;
         private static string _weltId;
+        public static string Kennung => _weltId;
 
         private static void VergissWelt()
         {
@@ -242,12 +243,18 @@ namespace Floppy.Unrailed2
         // ---------------------------------------------------------------- Schreiben
 
         /// <summary>Writes the exact type hash used by the game's own web UI and verifies this entity.</summary>
-        public static bool Setze(long entitaet, string typSchluessel, string feldSchluessel, string wertAlsJson)
+        public static bool Setze(long entitaet, string typSchluessel, string feldSchluessel, string wertAlsJson, int leseVersuche = 1)
         {
             var art = FindeArt(typSchluessel);
             if (!Schreibe(art, entitaet, feldSchluessel, wertAlsJson)) return false;
-            var field = Felder(art.Schluessel).FirstOrDefault(f => f.Entitaet == entitaet && f.Schluessel == feldSchluessel);
-            return field != null && Gleich(field.Wert, wertAlsJson);
+            for (int versuch = 0; versuch < Math.Max(1, Math.Min(4, leseVersuche)); versuch++)
+            {
+                if (versuch > 0) System.Threading.Thread.Sleep(50);
+                var field = Felder(art.Schluessel).FirstOrDefault(f => f.Entitaet == entitaet && f.Schluessel == feldSchluessel);
+                if (field != null && Gleich(field.Wert, wertAlsJson)) return true;
+                if (!Debugger.Erreichbar) break;
+            }
+            return false;
         }
 
         private static bool Schreibe(Komponentenart art, long entitaet, string feld, string wertAlsJson)
@@ -289,6 +296,8 @@ namespace Floppy.Unrailed2
         /// unter Umstaenden als "10.0" zurueck, und ein true als "True".</summary>
         private static bool Gleich(string a, string b)
         {
+            a = OhneJsonAnfuehrung(a);
+            b = OhneJsonAnfuehrung(b);
             if (string.Equals(a?.Trim(), b?.Trim(), StringComparison.OrdinalIgnoreCase)) return true;
 
             if (double.TryParse(a, NumberStyles.Float, CultureInfo.InvariantCulture, out double x) &&
@@ -296,6 +305,17 @@ namespace Floppy.Unrailed2
                 return Math.Abs(x - y) < 0.0001;
 
             return false;
+        }
+
+        private static string OhneJsonAnfuehrung(string wert)
+        {
+            if (wert == null || !wert.TrimStart().StartsWith("\"", StringComparison.Ordinal)) return wert;
+            try
+            {
+                using var doc = JsonDocument.Parse(wert);
+                return doc.RootElement.ValueKind == JsonValueKind.String ? doc.RootElement.GetString() : wert;
+            }
+            catch (JsonException) { return wert; }
         }
 
         public static bool SetzeZahl(long entitaet, string typ, string feld, double wert)

@@ -12,5 +12,7 @@
     <Compile Include="..\..\src\Floppy.Unrailed2\Cheats.cs" Link="Cheats.cs" />
     <Compile Include="..\..\src\Floppy.Unrailed2\Schutz.cs" Link="Schutz.cs" />
     <Compile Include="..\..\src\Floppy.Unrailed2\Unrailed2Module.cs" Link="Unrailed2Module.cs" />
+    <Compile Include="..\..\src\Floppy.Unrailed2\Muttern.cs" Link="Muttern.cs" />
+    <Compile Include="..\..\src\Floppy.Unrailed2\ZugAktionen.cs" Link="ZugAktionen.cs" />
   </ItemGroup>
 </Project>

@@ -18,7 +18,9 @@ internal static class Program
         ("availability and info callbacks reuse one cheat snapshot without requests", Snapshot),
         ("a vanished selected field requires an explicit replacement choice", MissingField),
         ("a vanished selected component never selects another component automatically", MissingGroup),
-        ("bulk writes share one target-specific readback", BulkTests.Run)
+        ("bulk writes share one target-specific readback", BulkTests.Run),
+        ("direct team bolt additions validate fresh state and confirmation", MutternTests.Run),
+        ("explicit train actions preserve ownership and target only attached wagons", ZugAktionenTests.Run)
     };
 
     private static int Main()
@@ -146,7 +148,7 @@ internal static class Program
         Cheats.AktualisiereSnapshot();
         Check(Cheats.Verfuegbar && Debugger.Requests.SequenceEqual(new[] { "listEntities?cTypes=46" }),
             "one snapshot refresh must read the singleton through its runtime ID exactly once");
-        var options = new[] { Cheats.Zug(), Cheats.Bauen(), Cheats.Muttern(), Cheats.Automatik() }
+        var options = new[] { Cheats.Zug(), Cheats.Bauen(), Cheats.Automatik() }
             .SelectMany(category => category.Options).ToArray();
         int requests = Debugger.Requests.Count;
         bool available = true;
