@@ -33,6 +33,7 @@ internal static class Program
         {
             ("stable release parsing, version ordering and complete assets", ParseManifests),
             ("malformed API data fails visibly without an update offer", MalformedApi),
+            ("startup check preserves the previous install failure", PreviousInstallFailure),
             ("fixed repository links and allowed HTTPS hosts", UrlPolicy),
             ("checksum text binds its digest to the exact filename", Checksums),
             ("404 and rate limits preserve an idle service", HttpErrors),
@@ -54,6 +55,16 @@ internal static class Program
         }
         Console.WriteLine($"{passed}/{cases.Length} update regression groups passed; {_checks} assertions; no real network or installer processes.");
         return passed == cases.Length ? 0 : 1;
+    }
+
+    private static async Task PreviousInstallFailure()
+    {
+        using var fixture = new Fixture(DefaultReply);
+        typeof(UpdateService).GetField("_lastInstallFailure", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+            .SetValue(fixture.Service, "Die EXE war gesperrt.");
+        await fixture.Service.CheckAsync();
+        Check(fixture.Service.CanDownload && fixture.Service.Status.Contains("Die EXE war gesperrt.")
+            && fixture.Service.Status.Contains("ist verfügbar"), "automatic checking must keep rollback errors visible alongside the new offer");
     }
 
     private static string Release(string version = Version, bool draft = false, bool prerelease = false,

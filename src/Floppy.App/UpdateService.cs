@@ -40,6 +40,7 @@ public sealed class UpdateService : IFloppyUpdates, IDisposable
     private readonly string _downloadRoot;
     private CancellationTokenSource? _operation;
     private UpdateOffer? _offer;
+    private string? _lastInstallFailure;
     private bool _disposed;
 
     public string CurrentVersion { get; }
@@ -72,7 +73,10 @@ public sealed class UpdateService : IFloppyUpdates, IDisposable
                 var root = json.RootElement;
                 if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("Success", out var success) && success.ValueKind == JsonValueKind.False
                     && root.TryGetProperty("Message", out var message) && message.ValueKind == JsonValueKind.String)
-                    Status = "Letztes Update nicht installiert: " + message.GetString();
+                {
+                    _lastInstallFailure = message.GetString();
+                    Status = "Letztes Update nicht installiert: " + _lastInstallFailure;
+                }
             }
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException) { }
@@ -106,13 +110,19 @@ public sealed class UpdateService : IFloppyUpdates, IDisposable
         }
         catch (OperationCanceledException) { Status = "Updateprüfung abgebrochen oder Zeitlimit erreicht."; }
         catch (Exception error) when (ExpectedFailure(error)) { Status = "Updateprüfung fehlgeschlagen: " + error.Message; }
-        finally { End(); }
+        finally
+        {
+            if (!string.IsNullOrWhiteSpace(_lastInstallFailure))
+                Status = "Letztes Update nicht installiert: " + _lastInstallFailure + "\n" + Status;
+            End();
+        }
     }
 
     public async Task DownloadAndRestartAsync()
     {
         if (Busy || _disposed || _offer == null) return;
         var offer = _offer;
+        _lastInstallFailure = null;
         Begin("Prüfe Update …", TimeSpan.FromMinutes(15));
         string? download = null;
         bool handedOff = false;
