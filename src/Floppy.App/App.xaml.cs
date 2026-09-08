@@ -9,6 +9,12 @@ public partial class App : Application
 {
     protected override void OnStartup(StartupEventArgs e)
     {
+        if (e.Args.Length > 0 && e.Args[0] == "--apply-update")
+        {
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            Shutdown(e.Args.Length == 3 ? UpdateInstaller.Run(e.Args[1], e.Args[2]) : 2);
+            return;
+        }
         if (e.Args.Length > 0 && e.Args[0] == "--install-game")
         {
             if (e.Args.Length != 4) { Shutdown(2); return; }

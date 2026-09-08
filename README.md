@@ -1,7 +1,15 @@
-# Floppy 1.4.3
+# Floppy 1.5.0
 
 Floppy ist ein modulares Windows-Modmenü mit Desktop-App und externem Overlay.
 Die Module definieren ihre Optionen einmal; Desktop und Overlay verwenden dieselbe Oberfläche.
+
+**[Aktuelle Downloads](https://github.com/easycrashx-nex/Floppy/releases/latest)** ·
+**[Alle Versionen](https://github.com/easycrashx-nex/Floppy/releases)**
+
+Version 1.5.0 ergänzt einen eigenen **Einstellungsbereich** für Floppy. Dort lassen sich
+Verbindungsautomatik, minimierter Start, Fensterspeicherung, Overlay-Taste und die
+Updateprüfung beim Start einstellen. Neue stabile Versionen können direkt heruntergeladen,
+geprüft und mit einem Neustart installiert werden. Details: [Änderungen 1.5.0](docs/Aenderungen-1.5.0.md).
 
 Version 1.4.3 ergänzt die einzeln weitergebbare **`Floppy-1.4.3-Portable.exe`** für Windows x64.
 Die Spielsuche prüft die zum gewählten Spiel gehörende EXE und gegebenenfalls dessen
@@ -58,7 +66,7 @@ Ein erfolgreicher Build bestätigt keine Funktion im laufenden Spiel.
 Floppy benötigt **Windows x64**. Für die vollständigen Release-Ausgaben ist keine
 separate .NET-Installation erforderlich. Zwei Varianten stehen zur Verfügung:
 
-- **Einzelne Portable-EXE:** `Floppy-1.4.3-Portable.exe` speichern und starten. Diese eine
+- **Einzelne Portable-EXE:** `Floppy-1.5.0-Portable.exe` speichern und starten. Diese eine
   Datei kann allein weitergegeben werden. Sie enthält die .NET-Laufzeit, alle mitgelieferten
   Loader, Module und Bilder. Beim ersten Start entpackt sie ihre Dateien automatisch in
   einen eigenen Bundlecache; der erste Start kann deshalb etwas länger dauern.
@@ -73,9 +81,9 @@ benötigt gegebenenfalls die .NET 8 Desktop Runtime.
 Die App durchsucht Steam-Bibliotheken nach dem passenden Spiel. Unter **Werkzeuge** stehen Diagnose, Reparatur,
 Wiederherstellung und die manuelle Ordnerauswahl zur Verfügung. Favoriten und die Suche
 helfen beim Navigieren. Die App muss während des Spielens geöffnet bleiben.
-Nach dem Verbinden öffnet `F1` das externe Overlay über dem aktiven Spielfenster.
+Nach dem Verbinden öffnet die gewählte Overlay-Taste (standardmäßig `F1`) das externe Overlay über dem aktiven Spielfenster.
 Alternativ öffnet die Schaltfläche **Overlay** die Oberfläche über dem verbundenen Spiel.
-`F1`, `Esc` oder die Schließen-Schaltfläche schließen das Overlay; Floppy bleibt minimiert erreichbar.
+Die Overlay-Taste, `Esc` oder die Schließen-Schaltfläche schließen das Overlay; Floppy bleibt minimiert erreichbar.
 **Desktop** wechselt zurück zur normalen App. Beim Wechsel in eine andere App blendet sich das Overlay aus.
 
 - **Suche:** sucht im Optionsbestand; `Strg+F` fokussiert die Suche, auch im Overlay.
@@ -86,7 +94,33 @@ Alternativ öffnet die Schaltfläche **Overlay** die Oberfläche über dem verbu
 - **Tastenkürzel:** Rechtsklick auf den Stern weist einer Toggle-/Button-Option ein Kürzel mit Strg oder Alt zu. Es wirkt bei aktivem Spiel oder aktiver Floppy-App.
 - **Diagnose:** zeigt Installationszustand, fehlende/geänderte Dateien und Verbindungsinformationen.
 - **Spielordner:** manuell gewählte Ordner können wieder auf Steam-Erkennung zurückgestellt werden.
-- **Fenster:** Größe und Position bleiben zwischen Starts erhalten.
+- **Einstellungen:** oben in der App oder unter **Werkzeuge → Einstellungen**, auch ohne laufendes Spiel.
+- **Fenster:** Größe und Position bleiben zwischen Starts erhalten, wenn die Fensterspeicherung eingeschaltet ist.
+
+## Einstellungen und Updates
+
+Die App-Einstellungen gelten für alle Spiele. Änderungen mit **Speichern** übernehmen.
+Automatisches Verbinden und die Overlay-Taste ändern sich sofort; der minimierte Start
+und das Wiederherstellen des Fensters wirken beim nächsten Start. Ohne Verbindungsautomatik
+bleibt die Schaltfläche **Verbinden** verfügbar. Favoriten, Spielordner und eigene Tastenkürzel bleiben erhalten.
+
+Unter **Einstellungen → Updates** zeigt Floppy die installierte Version und den letzten
+Prüfstatus. **Nach Updates suchen** prüft das öffentliche GitHub-Repository ohne Anmeldung.
+Die optionale Prüfung beim Start installiert nichts automatisch. Bei einer neuen stabilen
+Version startet **Herunterladen und neu starten** den Download mit Fortschrittsanzeige.
+Floppy prüft Dateigröße und SHA256, beendet seine Verbindungen und Dienste und ersetzt
+anschließend die gestartete EXE. Die bisherige EXE bleibt als `.Floppy-backup-….exe`
+im selben Ordner erhalten. Benutzereinstellungen und Profile bleiben in AppData.
+
+Das funktioniert für die Portable-EXE und die EXE aus dem vollständigen ZIP. Nach einem
+Update erhält auch die ZIP-Ausgabe die vollständige Portable-EXE. Liegt die EXE in einem
+geschützten Ordner, kann Windows für den Austausch Administratorrechte anfordern.
+Bereits im Spiel geladene Module werden erst durch **Einrichten / reparieren** bei
+beendetem Spiel aktualisiert. **Releaseverlauf** öffnet alle veröffentlichten Versionen.
+
+Die neun vorhandenen Pakete von 1.1.0 bis 1.4.3 wurden unverändert nachträglich hochgeladen.
+Die Release-Texte unterscheiden den ursprünglichen Quellstand vom tatsächlichen
+GitHub-Veröffentlichungsdatum. Für 1.0.0 liegt kein verlässlich zuordenbares Paket vor.
 
 Beim Einrichten muss das Spiel beendet sein. Floppy prüft alle benötigten Quelldateien,
 bereitet die Installation vor und sichert ersetzte Dateien unter `.floppy` im Spielordner.
@@ -154,11 +188,11 @@ dotnet build src/Floppy.App/Floppy.App.csproj -c Release
 dotnet build src/Floppy.App/Floppy.App.csproj -c Release -p:BuildGameModules=false
 
 # Vollständiges eigenständiges Windows-Paket für die ZIP-Weitergabe:
-dotnet publish src/Floppy.App/Floppy.App.csproj -c Release -r win-x64 --self-contained true -o artifacts/Floppy-1.4.3-win-x64
+dotnet publish src/Floppy.App/Floppy.App.csproj -c Release -r win-x64 --self-contained true -o artifacts/Floppy-1.5.0-win-x64
 
 # Einzelne EXE mit eingebetteter Laufzeit und sämtlichen Installationsdateien:
-dotnet publish src/Floppy.App/Floppy.App.csproj -c Release -p:PublishProfile=Portable -o artifacts/Floppy-1.4.3-portable
-Copy-Item -LiteralPath .\artifacts\Floppy-1.4.3-portable\Floppy.exe -Destination .\artifacts\Floppy-1.4.3-Portable.exe
+dotnet publish src/Floppy.App/Floppy.App.csproj -c Release -p:PublishProfile=Portable -o artifacts/Floppy-1.5.0-portable
+Copy-Item -LiteralPath .\artifacts\Floppy-1.5.0-portable\Floppy.exe -Destination .\artifacts\Floppy-1.5.0-Portable.exe
 
 # Bauen und How to Fish einrichten – Build erfolgt vor jeder Spieländerung:
 .\deploy.ps1 -GameDir "D:\SteamLibrary\steamapps\common\How to Fish\How to Fish" -App
@@ -169,6 +203,20 @@ Copy-Item -LiteralPath .\artifacts\Floppy-1.4.3-portable\Floppy.exe -Destination
 
 Ein Desktop-Build mit `BuildGameModules=false` enthält keine Unity-Installationspakete
 und ist deshalb kein vollständiges Release.
+
+### Neue Version auf GitHub veröffentlichen
+
+Die App-Version in `src/Floppy.App/Floppy.App.csproj` erhöhen, Änderungen dokumentieren,
+`tools/test.ps1` ausführen und den Quellstand committen. Anschließend erstellt
+`tools/publish.ps1` beide geprüften Release-Ausgaben. Einen Tag `vX.Y.Z` auf diesen
+Commit setzen und mit dem Quellstand hochladen.
+
+Für den GitHub-Release die Portable-EXE, das ZIP und beide `.sha256`-Dateien aus
+`releases` anhängen. Erst nach vollständigem Upload als stabilen **Latest**-Release
+veröffentlichen. Der Updater erwartet exakt `Floppy-X.Y.Z-Portable.exe` und
+`Floppy-X.Y.Z-Portable.exe.sha256` unter dem Tag `vX.Y.Z`; Entwürfe, Vorabversionen
+und ältere Versionen werden nicht installiert. Die Änderungshinweise aus der
+passenden Datei in `docs` als Release-Text verwenden.
 
 ## Prüfen
 
@@ -182,13 +230,13 @@ dotnet run --project tests/Floppy.Install.Tests -c Release
 python -m unittest discover -s tools -p "test_rauchtest.py"
 
 # Zusätzlich das tatsächliche Publish-Paket auf Vollständigkeit prüfen:
-dotnet run --project tests/Floppy.Install.Tests -c Release -- artifacts/Floppy-1.4.3-win-x64
+dotnet run --project tests/Floppy.Install.Tests -c Release -- artifacts/Floppy-1.5.0-win-x64
 
 # Die ausgelieferte EXE selbst prüfen (ohne Spielzugriff oder sichtbares Fenster):
-.\artifacts\Floppy-1.4.3-win-x64\Floppy.exe --self-test "$env:TEMP\floppy-self-test.txt"
+.\artifacts\Floppy-1.5.0-win-x64\Floppy.exe --self-test "$env:TEMP\floppy-self-test.txt"
 
 # Nur die Portable-EXE in einen isolierten Ordner kopieren und prüfen:
-.\tools\test-portable.ps1 -Exe .\artifacts\Floppy-1.4.3-Portable.exe
+.\tools\test-portable.ps1 -Exe .\artifacts\Floppy-1.5.0-Portable.exe
 
 # P.I.T.T.-Backend zusätzlich mit einer vorhandenen Godot-4-Konsole prüfen:
 .\tools\test-pitt.ps1 -Godot "C:\Pfad\Godot_console.exe"

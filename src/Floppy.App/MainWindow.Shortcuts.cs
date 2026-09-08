@@ -26,7 +26,7 @@ public partial class MainWindow
         string game = _connectedGameId;
         string session = _sessionId;
         var window = new Window { Owner = this, Title = "Tastenkürzel · " + option.Label, Width = 480, Height = 190, ResizeMode = ResizeMode.NoResize, WindowStartupLocation = WindowStartupLocation.CenterOwner, Background = (Brush)FindResource("BgPanel") };
-        var hint = new TextBlock { Text = "Drücke Strg oder Alt zusammen mit einer Taste.\nF1 und Strg+F bleiben für Menü und Suche reserviert.\nEsc bricht ab.", Margin = new Thickness(24), TextWrapping = TextWrapping.Wrap, Foreground = (Brush)FindResource("Text") };
+        var hint = new TextBlock { Text = "Drücke Strg oder Alt zusammen mit einer Taste.\n" + _settings.OverlayHotkey + " und Strg+F bleiben für Menü und Suche reserviert.\nEsc bricht ab.", Margin = new Thickness(24), TextWrapping = TextWrapping.Wrap, Foreground = (Brush)FindResource("Text") };
         window.Content = hint;
         window.PreviewKeyDown += (_, e) =>
         {
@@ -38,7 +38,7 @@ public partial class MainWindow
             if ((modifiers & (ModifierKeys.Control | ModifierKeys.Alt)) == 0 ||
                 key is Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt or Key.LeftShift or Key.RightShift or Key.LWin or Key.RWin) return;
             e.Handled = true;
-            if (key == Key.F1 || (key == Key.F && modifiers == ModifierKeys.Control)) return;
+            if (key == OverlayKey || (key == Key.F && modifiers == ModifierKeys.Control)) return;
             string gesture = new KeyGestureConverter().ConvertToInvariantString(new KeyGesture(key, modifiers))!;
             if (!_settings.Shortcuts.TryGetValue(game, out var shortcuts))
                 _settings.Shortcuts[game] = shortcuts = new();
@@ -65,7 +65,7 @@ public partial class MainWindow
             try
             {
                 if (new KeyGestureConverter().ConvertFromInvariantString(pair.Value) is not KeyGesture gesture) continue;
-                if ((gesture.Modifiers & (ModifierKeys.Control | ModifierKeys.Alt)) == 0 || gesture.Key == Key.F1 ||
+                if ((gesture.Modifiers & (ModifierKeys.Control | ModifierKeys.Alt)) == 0 || gesture.Key == OverlayKey ||
                     (gesture.Key == Key.F && gesture.Modifiers == ModifierKeys.Control)) continue;
                 if (RegisterHotKey(handle, id, (uint)gesture.Modifiers | 0x4000, (uint)KeyInterop.VirtualKeyFromKey(gesture.Key)))
                     _shortcutIds[id++] = option.Id;

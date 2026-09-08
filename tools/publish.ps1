@@ -79,6 +79,20 @@ function Write-Sha256([string]$Payload, [string]$Destination, [string]$Name) {
     Set-Content -LiteralPath $Destination -Value ($hash + '  ' + $Name) -Encoding ascii
 }
 
+function Test-UpdateHelperDispatch([string]$Exe) {
+    # Missing helper arguments must exit before normal UI startup; this writes no update plan or result.
+    $process = Start-Process -FilePath $Exe -ArgumentList '--apply-update' -WindowStyle Hidden -PassThru
+    try {
+        if (-not $process.WaitForExit(60000)) {
+            $process.Kill()
+            throw 'The update helper did not exit on missing arguments.'
+        }
+        $process.Refresh()
+        if ($process.ExitCode -ne 2) { throw "Update helper dispatch failed (exit $($process.ExitCode))." }
+    }
+    finally { $process.Dispose() }
+}
+
 Assert-NewReleaseTargets
 foreach ($required in 'README.md', 'docs', 'src\Floppy.App\Properties\PublishProfiles\Portable.pubxml',
         'tools\test-portable.ps1', 'tests\Floppy.Install.Tests\Floppy.Install.Tests.csproj') {
@@ -121,10 +135,12 @@ try {
     Copy-Item -LiteralPath (Join-Path $projectRoot 'README.md') -Destination $package
     Copy-Item -LiteralPath (Join-Path $projectRoot 'docs') -Destination $package -Recurse
     Test-PackageExe (Join-Path $package 'Floppy.exe') (Join-Path $package 'EXE-Selbstpruefung.txt')
+    Test-UpdateHelperDispatch (Join-Path $package 'Floppy.exe')
     Invoke-Dotnet @('run', '--project', (Join-Path $projectRoot 'tests\Floppy.Install.Tests\Floppy.Install.Tests.csproj'),
         '-c', 'Release', '-p:BuildGameModules=false', '--artifacts-path', (Join-Path $stage 'install-tests'), '--', $package)
     & (Join-Path $PSScriptRoot 'test-portable.ps1') -Exe $portableExe |
         Tee-Object -FilePath (Join-Path $stage 'Portable-Selbstpruefung.txt')
+    Test-UpdateHelperDispatch $portableExe
 
     $sourceCommit = 'unavailable'
     $dirty = 'unknown'
@@ -141,6 +157,7 @@ try {
         "Source commit: $sourceCommit; uncommitted changes: $dirty",
         'Folder release: self-contained .NET and WPF runtime verified.',
         'EXE self-test and synthetic installer/package checks: passed.',
+        'Folder and Portable update helper dispatch: passed without starting the main UI.',
         'Portable EXE: copied alone to a Unicode path, empty working directory and isolated runtime cache; passed.',
         'No live game actions were performed by these package checks.'
     ) | Set-Content -LiteralPath (Join-Path $package 'Release-Pruefung.txt') -Encoding utf8

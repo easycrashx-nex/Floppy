@@ -23,15 +23,20 @@ public partial class MainWindow
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
+        ApplyWindowColors(this);
+    }
+
+    internal static void ApplyWindowColors(Window window)
+    {
         if (!OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000) || SystemParameters.HighContrast) return;
-        var handle = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+        var handle = new System.Windows.Interop.WindowInteropHelper(window).Handle;
         // Native caption controls and resizing stay with Windows; only their colors change.
         // https://learn.microsoft.com/windows/win32/api/dwmapi/ne-dwmapi-dwmwindowattribute
         int dark = 1;
         _ = DwmSetWindowAttribute(handle, 20, ref dark, sizeof(int));
         foreach (var (attribute, resource) in new[] { (35, "BgTief"), (36, "Text") })
         {
-            var color = ((SolidColorBrush)FindResource(resource)).Color;
+            var color = ((SolidColorBrush)window.FindResource(resource)).Color;
             int rgb = color.R | (color.G << 8) | (color.B << 16);
             _ = DwmSetWindowAttribute(handle, attribute, ref rgb, sizeof(int));
         }
@@ -68,6 +73,7 @@ public partial class MainWindow
 
     private void RestoreWindow()
     {
+        if (!_settings.RememberWindowPosition) return;
         Width = double.IsFinite(_settings.Width) ? Math.Clamp(_settings.Width, MinWidth, Math.Max(MinWidth, SystemParameters.VirtualScreenWidth)) : 1180;
         Height = double.IsFinite(_settings.Height) ? Math.Clamp(_settings.Height, MinHeight, Math.Max(MinHeight, SystemParameters.VirtualScreenHeight)) : 760;
         if (_settings.Left is double left && _settings.Top is double top && double.IsFinite(left) && double.IsFinite(top))
@@ -99,26 +105,32 @@ public partial class MainWindow
         _ipc.Disconnect();
         RemoveShortcuts();
         var bounds = _imOverlay ? new Rect(_linksVorher, _obenVorher, _breiteVorher, _hoeheVorher) : RestoreBounds;
-        if (!bounds.IsEmpty)
+        if (_settings.RememberWindowPosition && !bounds.IsEmpty)
         {
             _settings.Left = bounds.Left; _settings.Top = bounds.Top;
             _settings.Width = bounds.Width; _settings.Height = bounds.Height;
         }
-        _settings.Maximized = (_imOverlay || WindowState == WindowState.Minimized ? _zustandVorher : WindowState) == WindowState.Maximized;
+        if (_settings.RememberWindowPosition)
+            _settings.Maximized = (_imOverlay || WindowState == WindowState.Minimized ? _zustandVorher : WindowState) == WindowState.Maximized;
         SaveSettings();
         try
         {
-            while (true)
-            {
-                var stopped = await Task.WhenAll(Floppy.Unreal.Host.StoppeAsync(), Floppy.Unrailed2.Host.StoppeAsync());
-                if (stopped.All(value => value)) break;
-                SetStatus("Warte auf den Abschluss des laufenden Spielbefehls…", false, transient: true);
-            }
+            await DrainHostsAsync();
         }
         finally
         {
             _closed = true;
             Close();
+        }
+    }
+
+    private async Task DrainHostsAsync()
+    {
+        while (true)
+        {
+            var stopped = await Task.WhenAll(Floppy.Unreal.Host.StoppeAsync(), Floppy.Unrailed2.Host.StoppeAsync());
+            if (stopped.All(value => value)) return;
+            SetStatus("Warte auf den Abschluss des laufenden Spielbefehls…", false, transient: true);
         }
     }
 
@@ -185,14 +197,14 @@ public partial class MainWindow
         RestartElevatedItem.Visibility = (_connectedGameId == "MortalShell2" || _selectedGame?.ProductName == "MortalShell2")
             && !new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator)
             ? Visibility.Visible : Visibility.Collapsed;
-        RestartElevatedItem.IsEnabled = !_installing && !_closing;
+        RestartElevatedItem.IsEnabled = RepairItem.IsEnabled = RestoreItem.IsEnabled = !_installing && !_closing && !UpdateBusy;
         button.ContextMenu.PlacementTarget = button;
         button.ContextMenu.IsOpen = true;
     }
 
     private void OnRestartElevated(object sender, RoutedEventArgs e)
     {
-        if (_installing || _closing) return;
+        if (_installing || _closing || UpdateBusy) return;
         try
         {
             SaveSettings();
@@ -258,11 +270,12 @@ public partial class MainWindow
     private bool _installing;
     private async Task InstallAction(bool restore)
     {
-        if (_installing || _closing || _closed) return;
+        if (_installing || _closing || _closed || UpdateBusy) return;
         if (_selectedGame?.InstallDir is not string path)
         { SetStatus("Bitte zuerst einen Spielordner wählen", true, transient: true); return; }
         var game = _selectedGame;
         _installing = true;
+        _settingsWindow?.RefreshUpdates();
         LaunchButton.IsEnabled = false;
         GameList.IsEnabled = false;
         SetStatus(restore ? "Stelle die Installation wieder her…" : "Prüfe und repariere Floppy…", false, transient: true);

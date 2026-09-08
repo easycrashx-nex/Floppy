@@ -18,7 +18,6 @@ public partial class MainWindow
 {
     private const int WM_HOTKEY = 0x0312;
     private const int HOTKEY_ID = 0x4653;
-    private const uint VK_F1 = 0x70;
     [DllImport("user32.dll")] private static extern bool RegisterHotKey(IntPtr window, int id, uint modifiers, uint key);
     [DllImport("user32.dll")] private static extern bool UnregisterHotKey(IntPtr window, int id);
     [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr window);
@@ -91,7 +90,7 @@ public partial class MainWindow
         OverlayButton.ToolTip = !_ipc.Connected ? "Zuerst mit einem Spiel verbinden."
             : !OverlaySupported ? "Spiel beenden und Floppy unter Werkzeuge reparieren, um das Spielmodul zu aktualisieren."
             : _gameWindow == null ? "Kein erreichbares Spielfenster gefunden. Öffne das Spiel oder stelle sein minimiertes Fenster wieder her."
-            : "F1 öffnet das externe Overlay. Für Vollbild im Spiel den Modus Randloses Vollbild wählen.";
+            : _settings.OverlayHotkey + " öffnet das externe Overlay. Für Vollbild im Spiel den Modus Randloses Vollbild wählen.";
         TasteNachfuehren();
     }
 
@@ -120,8 +119,8 @@ public partial class MainWindow
         {
             if (_lastHotkeyAttempt != 0 && Stopwatch.GetElapsedTime(_lastHotkeyAttempt).TotalSeconds < 5) return;
             _lastHotkeyAttempt = Stopwatch.GetTimestamp();
-            _tasteAngemeldet = RegisterHotKey(handle, HOTKEY_ID, 0x4000, VK_F1);
-            if (!_tasteAngemeldet) SetStatus("F1 ist bereits belegt. Das Overlay lässt sich über den Knopf öffnen.", true, transient: true);
+            _tasteAngemeldet = RegisterHotKey(handle, HOTKEY_ID, 0x4000, (uint)KeyInterop.VirtualKeyFromKey(OverlayKey));
+            if (!_tasteAngemeldet) SetStatus(_settings.OverlayHotkey + " ist bereits belegt. Das Overlay lässt sich über den Knopf öffnen.", true, transient: true);
         }
         else { UnregisterHotKey(handle, HOTKEY_ID); _tasteAngemeldet = false; }
     }
@@ -195,7 +194,7 @@ public partial class MainWindow
             Activate();
             SetForegroundWindow(new WindowInteropHelper(this).Handle);
             ScaleOverlay();
-            SetStatus("Externes Overlay · F1 oder Esc zurück zum Spiel", false, transient: true);
+            SetStatus("Externes Overlay · " + _settings.OverlayHotkey + " oder Esc zurück zum Spiel", false, transient: true);
         }
         catch (Exception ex)
         {

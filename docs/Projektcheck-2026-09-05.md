@@ -159,7 +159,7 @@ Vorerst zurückstellen würde ich zusätzliche Spiele, einen Wechsel des UI-Fram
 
 Die Hilfsprogramme und Build-Ausgaben liegen ausschließlich in temporären Verzeichnissen:
 
-- Build, Publish und WPF-Messung: `C:\Users\ginow\AppData\Local\Temp\floppy-review-20260905-160435`.
-- Modellprüfungen: `C:\Users\ginow\AppData\Local\Temp\floppy-model-review-6ce1fd18c0f74f7794559ce634aa6b6d`.
+- Build, Publish und WPF-Messung: `%TEMP%\floppy-review-20260905-160435`.
+- Modellprüfungen: `%TEMP%\floppy-model-review-6ce1fd18c0f74f7794559ce634aa6b6d`.
 
 Die isolierten Tests bestätigen die beschriebenen Modell- und Layoutfehler. Sie ersetzen keine Spieltests der späteren Korrekturen. Dieser Bericht ist die einzige im Projekt hinzugefügte Datei.

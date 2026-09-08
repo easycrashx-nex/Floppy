@@ -93,6 +93,8 @@
                 <Border Grid.Row="3" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="8,14" Margin="0,10,0,0">
                     <StackPanel>
                         <TextBlock x:Name="LibraryHint" FontSize="10.5" TextWrapping="Wrap" Foreground="{StaticResource Muted}"/>
+                        <Button x:Name="SettingsButton" Content="Einstellungen" Style="{StaticResource FlatButton}"
+                                HorizontalContentAlignment="Left" Padding="10,9" Margin="0,12,0,0" Click="OnOpenSettings"/>
                         <TextBlock Text="Floppy · Modmenü" FontSize="10" Foreground="{StaticResource Muted}" Margin="0,9,0,0"/>
                     </StackPanel>
                 </Border>
@@ -139,12 +141,14 @@
                     <Button x:Name="ToolsButton" Content="Werkzeuge  ···" Style="{StaticResource FlatButton}" Click="OnToolsClicked">
                         <Button.ContextMenu>
                             <ContextMenu>
+                                <MenuItem x:Name="SettingsMenuItem" Header="Einstellungen…" Click="OnOpenSettings"/>
+                                <Separator/>
                                 <MenuItem Header="Diagnose anzeigen" Click="OnDiagnose"/>
                                 <MenuItem x:Name="RestartElevatedItem" Header="Floppy als Administrator neu starten…"
                                           ToolTip="Bei Windows-Fehler 5, wenn das Spiel mit Administratorrechten läuft. Windows fragt nach deiner Bestätigung."
                                           Click="OnRestartElevated"/>
-                                <MenuItem Header="Floppy einrichten / reparieren" Click="OnRepair"/>
-                                <MenuItem Header="Installation wiederherstellen" Click="OnRestore"/>
+                                <MenuItem x:Name="RepairItem" Header="Floppy einrichten / reparieren" Click="OnRepair"/>
+                                <MenuItem x:Name="RestoreItem" Header="Installation wiederherstellen" Click="OnRestore"/>
                                 <Separator/>
                                 <MenuItem Header="Spielordner wählen…" Click="OnChooseGameFolder"/>
                                 <MenuItem Header="Automatische Ordnersuche verwenden" Click="OnAutomaticGameFolder"/>
@@ -219,7 +223,7 @@
                        ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/>
             <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0">
                 <TextBlock x:Name="GameLabel" Text="nicht verbunden" FontSize="10.5" Foreground="{StaticResource Muted}" Margin="0,0,14,0" MaxWidth="150" TextTrimming="CharacterEllipsis"/>
-                <TextBlock Text="F1  Overlay" FontFamily="{StaticResource Mono}" FontSize="10.5" Foreground="{StaticResource Muted}" ToolTip="Externes Overlay für Fenstermodus und randloses Vollbild. Esc schließt es."/>
+                <TextBlock x:Name="OverlayHotkeyHint" Text="F1  Overlay" FontFamily="{StaticResource Mono}" FontSize="10.5" Foreground="{StaticResource Muted}" ToolTip="Externes Overlay für Fenstermodus und randloses Vollbild. Esc schließt es."/>
             </StackPanel>
         </Grid>
     </Grid>

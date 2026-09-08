@@ -72,12 +72,19 @@ public partial class MainWindow : Window
         _settings = offline ? new UserSettings() : UserSettings.Load();
         InitializeComponent();
         RestoreWindow();
+        RefreshOverlayHotkeyLabels();
         if (offline) return;
+        ApplyStartupSettings();
         _poll.Tick += async (_, _) => await TickAsync();
 
         Loaded += async (_, _) =>
         {
+            if (_startupLoaded) return;
+            _startupLoaded = true;
+            ShowActivated = true;
             OverlayVorbereiten();
+
+            if (_settings.CheckUpdatesOnStartup) _ = Updates.CheckAsync();
 
             GameCatalog.WriteTemplateIfMissing();
             ScanLibrary();
@@ -85,7 +92,7 @@ public partial class MainWindow : Window
             _poll.Start();
         };
         Closing += OnClosing;
-        Closed += (_, _) => { _closed = true; _poll.Stop(); _ipc.Dispose(); RemoveShortcuts(); };
+        Closed += (_, _) => { _closed = true; _poll.Stop(); _ipc.Dispose(); RemoveShortcuts(); DisposeSettings(); };
     }
 
     // ---------------------------------------------------------------- Spielebibliothek
@@ -210,14 +217,16 @@ public partial class MainWindow : Window
 
     private void UpdateLaunchButton()
     {
-        LaunchButton.IsEnabled = _selectedGame?.Installed == true;
+        LaunchButton.IsEnabled = _selectedGame?.Installed == true && !_installing && !_closing && !UpdateBusy;
         LaunchButton.Content = _selectedGame == null ? "Spiel starten" : "Starten";
+        _settingsWindow?.RefreshUpdates();
     }
 
     private async void OnLaunchGame(object sender, RoutedEventArgs e)
     {
-        if (_selectedGame is not { Installed: true, InstallDir: not null } game || _installing || _closing || _closed) return;
+        if (_selectedGame is not { Installed: true, InstallDir: not null } game || _installing || _closing || _closed || UpdateBusy) return;
         _installing = true;
+        _settingsWindow?.RefreshUpdates();
         LaunchButton.IsEnabled = false;
         GameList.IsEnabled = false;
         try
@@ -291,7 +300,7 @@ public partial class MainWindow : Window
 
     private async Task TryConnectAsync(bool quiet)
     {
-        if (_connecting || _closing || _closed) return;
+        if (_connecting || _closing || _closed || (quiet && !_settings.AutoConnect)) return;
         _connecting = true;
         try
         {
@@ -302,6 +311,9 @@ public partial class MainWindow : Window
         TasteNachfuehren();
 
         bool connected = await _ipc.ConnectAsync();
+
+        if (quiet && !_settings.AutoConnect)
+        { _ipc.Disconnect(); ConnectButton.Content = "Verbinden"; return; }
 
         ConnectButton.IsEnabled = true;
 
@@ -472,7 +484,7 @@ public partial class MainWindow : Window
         _tickRunning = true;
         try
         {
-        StarteEigenenDienstFallsNoetig();
+        if (_settings.AutoConnect || _ipc.Connected) StarteEigenenDienstFallsNoetig();
         TasteNachfuehren();
         if (_ipc.Connected)
         {
@@ -503,7 +515,7 @@ public partial class MainWindow : Window
         // die App stumm, während nebenan ein anderes unterstütztes Spiel läuft.
         bool laeuft = _games.Any(g => g.Installed && IsRunning(g));
 
-        if (laeuft && !_manuellGetrennt &&
+        if (_settings.AutoConnect && laeuft && !_manuellGetrennt &&
             DateTime.UtcNow - _lastConnectTry > TimeSpan.FromSeconds(3))
         {
             _lastConnectTry = DateTime.UtcNow;
@@ -514,8 +526,9 @@ public partial class MainWindow : Window
             if (_ipc.Connected) return;
         }
 
-        SetStatus(laeuft ? "Spiel läuft - warte auf das Plugin" : "Kein Spiel gestartet",
-                  warn: true);
+        SetStatus(!_settings.AutoConnect ? "Automatische Verbindung aus · Zum Verbinden auf Verbinden klicken"
+                  : laeuft ? "Spiel läuft - warte auf das Plugin" : "Kein Spiel gestartet",
+                  warn: _settings.AutoConnect);
     }
 
     private async Task RefreshStateAsync()
