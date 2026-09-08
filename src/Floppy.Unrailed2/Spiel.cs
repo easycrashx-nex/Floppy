@@ -11,9 +11,8 @@ namespace Floppy.Unrailed2
     /// das Spiel oeffnet beim naechsten Start selbst einen kleinen Webserver, ueber den
     /// sich die laufende Welt lesen und veraendern laesst.
     ///
-    /// Deshalb schleusen wir hier nichts ein. Keine veraenderte .pck, keine fremde DLL,
-    /// keine Speichermanipulation - wir setzen einen Schalter, den die Entwickler selbst
-    /// eingebaut haben, und reden danach ueber HTTP mit dem Spiel.</summary>
+    /// Diese Klasse richtet den HTTP-Zugang ein. ByteBool-Schalter laufen zusätzlich
+    /// über den versionsgeprüften externen NativeCheats-Adapter.</summary>
     internal static class Spiel
     {
         public const string Prozess = "Unrailed2";

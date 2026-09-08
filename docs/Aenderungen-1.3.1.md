@@ -19,7 +19,9 @@ die fehlgeschlagene Initialisierung blockierte bisher die Antworten an die Oberf
 
 ## Starten
 
-Das vollständige Paket entpacken und `Floppy.exe` starten. Das Mortal-Shell-II-Modul läuft
+Für das Release 1.3.1 das vollständige Paket entpacken und `Floppy.exe` starten.
+Für die aktuelle Portable-EXE ab 1.4.3 gelten die Hinweise unter
+[Benutzen und weitergeben](../README.md#benutzen-und-weitergeben). Das Mortal-Shell-II-Modul läuft
 in dieser App; eine Installation im Spielordner ist nicht nötig. Die vom Spiel mitgelieferte
 PDB muss neben `MortalShell2-Win64-Shipping.exe` erhalten bleiben. Im Spiel einen Spielstand
 laden und für das externe Overlay randloses Vollbild wählen. **F1** öffnet das Overlay.

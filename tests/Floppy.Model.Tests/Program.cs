@@ -15,7 +15,7 @@ internal static class Program
     private static int _assertions;
     private static readonly string Scratch = Path.Combine(Path.GetTempPath(), "Floppy.Model.Tests-" + Guid.NewGuid().ToString("N"));
 
-    private static async Task<int> Main()
+    private static async Task<int> Main(string[] args)
     {
         Profile.StorageRoot = Scratch;
         Directory.CreateDirectory(Scratch);
@@ -24,6 +24,12 @@ internal static class Program
             JsonTests();
             ProfileTests();
             DependentProfileTests();
+            ProfileOrderTests.Run(Check);
+            if (args.Contains("--profiles-only"))
+            {
+                Console.WriteLine("PASS: " + _assertions + " assertions; only fake modules and temporary profiles, no sockets.");
+                return 0;
+            }
             ValidationAndResetTests();
             RegistryTests();
             await DispatcherTests();

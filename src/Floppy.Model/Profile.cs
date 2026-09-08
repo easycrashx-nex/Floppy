@@ -147,7 +147,7 @@ namespace Floppy.Core
                     throw new FormatException("Unbekannte Profilversion");
                 if (!(data.TryGetValue("werte", out object raw) && raw is List<object> entries))
                     throw new FormatException("Profil enthält keine Werteliste");
-                var pending = new List<Tuple<CheatOption, Dictionary<string, object>>>();
+                var pending = new Dictionary<string, Dictionary<string, object>>(StringComparer.OrdinalIgnoreCase);
                 var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 var failures = new List<string>();
                 int unknown = 0;
@@ -160,22 +160,25 @@ namespace Floppy.Core
                     if (!Speicherbar(option)) { unknown++; continue; }
                     // Abhängige Listen werden nach ihrem Kategorie-Callback neu geprüft.
                     OptionValues.Read(option, entry, profile: true, deferChoiceValidation: true);
-                    pending.Add(Tuple.Create(option, entry));
+                    pending.Add(id, entry);
                 }
                 // Typen und Zahlenbereiche sind geprüft. Listen können sich beim Anwenden ändern.
                 int applied = 0;
-                foreach (var change in pending.OrderBy(p => p.Item1.Id, StringComparer.Ordinal))
+                // Module registrieren Auswahlgeber vor ihren abhängigen Optionen. Diese Reihenfolge
+                // gilt auch für alte, alphabetisch gespeicherte Profile; Dateireihenfolge ist keine Abhängigkeit.
+                foreach (var option in Registry.Categories.SelectMany(c => c.Options).ToArray())
                 {
+                    if (!pending.TryGetValue(option.Id, out var entry)) continue;
                     try
                     {
-                        if (!change.Item1.Available) { failures.Add(change.Item1.Label + " nicht verfügbar"); continue; }
-                        OptionValues.Read(change.Item1, change.Item2, profile: true).Apply(change.Item1);
+                        if (!option.Available) { failures.Add(option.Label + " nicht verfügbar"); continue; }
+                        OptionValues.Read(option, entry, profile: true).Apply(option);
                         applied++;
                     }
                     catch (Exception ex)
                     {
-                        failures.Add(change.Item1.Label + ": " + ex.Message);
-                        Log.Warning("Profil, Option " + change.Item1.Id + ": " + ex.Message);
+                        failures.Add(option.Label + ": " + ex.Message);
+                        Log.Warning("Profil, Option " + option.Id + ": " + ex.Message);
                     }
                 }
                 message = "Profil \"" + name + "\": " + applied + " Werte geladen";

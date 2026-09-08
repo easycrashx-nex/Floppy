@@ -196,19 +196,26 @@ public partial class MainWindow
         try
         {
             SaveSettings();
-            var start = new ProcessStartInfo(Path.Combine(AppContext.BaseDirectory, "Floppy.exe"))
-            {
-                UseShellExecute = true,
-                Verb = "runas",
-                WorkingDirectory = AppContext.BaseDirectory
-            };
-            using var next = Process.Start(start);
+            using var next = Process.Start(ElevatedRestartInfo());
             if (next != null) Close();
         }
         catch (Win32Exception ex) when (ex.NativeErrorCode == 1223)
         { SetStatus("Neustart abgebrochen. Floppy bleibt geöffnet.", false, transient: true); }
         catch (Exception ex)
         { SetStatus("Neustart nicht möglich: " + ex.Message, true, transient: true); }
+    }
+
+    internal static ProcessStartInfo ElevatedRestartInfo()
+    {
+        // The single-file host may have a different name and lives outside its extraction cache.
+        string executable = Environment.ProcessPath
+            ?? throw new InvalidOperationException("Der Pfad der laufenden Floppy-EXE ist nicht verfügbar.");
+        return new ProcessStartInfo(executable)
+        {
+            UseShellExecute = true,
+            Verb = "runas",
+            WorkingDirectory = Path.GetDirectoryName(executable)!
+        };
     }
 
     private void OnDiagnose(object sender, RoutedEventArgs e)
@@ -279,9 +286,10 @@ public partial class MainWindow
         if (_selectedGame == null) return;
         var dialog = new OpenFolderDialog { Title = "Ordner mit der Spiel-EXE wählen", Multiselect = false };
         if (dialog.ShowDialog(this) != true) return;
-        if (!Directory.EnumerateFiles(dialog.FolderName, "*.exe").Any())
-        { SetStatus("In diesem Ordner liegt keine Spiel-EXE", true, transient: true); return; }
-        _settings.GameFolders[_selectedGame.ProductName] = dialog.FolderName;
+        string? directory = SteamLibrary.FindGameDirectory(dialog.FolderName, _selectedGame.AppId);
+        if (directory == null)
+        { SetStatus("Spieldateien von " + _selectedGame.Name + " nicht gefunden. Bitte dessen Installationsordner wählen.", true, transient: true); return; }
+        _settings.GameFolders[_selectedGame.ProductName] = directory;
         SaveSettings(); ScanLibrary();
     }
 

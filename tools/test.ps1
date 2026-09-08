@@ -1,10 +1,12 @@
-param([string]$Package)
+param([string]$Package, [string]$ArtifactsPath)
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
-foreach ($suite in 'Model', 'App', 'Host', 'Unreal', 'Unrailed2', 'Symbol', 'Ui', 'Overlay', 'Overlay.Ui', 'Install') {
+if ($ArtifactsPath) { $ArtifactsPath = [IO.Path]::GetFullPath($ArtifactsPath) }
+foreach ($suite in 'Model', 'App', 'Discovery', 'Host', 'Unreal', 'Unrailed2', 'Unrailed2.Native', 'Unrailed2.Native.Windows', 'Symbol', 'Ui', 'Overlay', 'Overlay.Ui', 'Install') {
     Write-Host "Prüfe Floppy.$suite..."
     $project = Join-Path $projectRoot "tests\Floppy.$suite.Tests\Floppy.$suite.Tests.csproj"
     $arguments = @('run', '--project', $project, '-c', 'Release', '-p:BuildGameModules=false')
+    if ($ArtifactsPath) { $arguments += @('--artifacts-path', $ArtifactsPath) }
     if ($suite -eq 'Install' -and $Package) {
         $arguments += @('--', (Resolve-Path -LiteralPath $Package).Path)
     }

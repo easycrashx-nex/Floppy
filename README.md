@@ -1,7 +1,18 @@
-# Floppy 1.4.2
+# Floppy 1.4.3
 
 Floppy ist ein modulares Windows-Modmenü mit Desktop-App und externem Overlay.
 Die Module definieren ihre Optionen einmal; Desktop und Overlay verwenden dieselbe Oberfläche.
+
+Version 1.4.3 ergänzt die einzeln weitergebbare **`Floppy-1.4.3-Portable.exe`** für Windows x64.
+Die Spielsuche prüft die zum gewählten Spiel gehörende EXE und gegebenenfalls dessen
+Datenordner bzw. PCK-Datei, auch in Unterordnern. Unzugängliche Suchpfade werden behandelt.
+Profile laden übergeordnete Auswahlen vor den davon abhängigen Werten: beispielsweise
+erst das Team und dann die Menge oder erst die Komponentengruppe und dann das Feld.
+Nicht bestätigte Änderungen der Unrailed-2-Entwickleroptionen werden als Fehler gemeldet;
+beim Profilladen zählen diese Werte nicht als erfolgreich angewendet.
+Die neun dauerhaften Unrailed-2-Schalter und die Boss-Abschnittszahl verwenden auf
+Windows 11 einen versionsgeprüften Zugang zur Spieleingabe, da der aktuelle Webdebugger
+die Schalterwerte nicht übertragen kann. Details: [Änderungen 1.4.3](docs/Aenderungen-1.4.3.md).
 
 Version 1.3 bringt die Graphit-Mint-Oberfläche als externes Overlay ins Spiel.
 Die bisherigen Unity- und P.I.T.T.-Ingame-Menüs entfallen.
@@ -14,8 +25,8 @@ Benutzerrechten: [Änderungen 1.3.2](docs/Aenderungen-1.3.2.md).
 Version 1.4.0 ergänzt für Mortal Shell II einen Gegenstandskatalog mit Kategorien,
 Itemsuche und Bildern: [Änderungen 1.4.0](docs/Aenderungen-1.4.0.md).
 Version 1.4.1 korrigiert die Unrailed-2-Komponentenabfragen und Statusaktualisierung.
-Die aktuelle Spielversion stellt die benötigte Cheat-Komponente in den geprüften Runden
-weiterhin nicht bereit; Zug-, Bau- und Automatikoptionen bleiben dort eingeschränkt:
+In den damaligen Prüfungen fehlte die benötigte Cheat-Komponente; Zug-, Bau- und
+Automatikoptionen blieben deshalb eingeschränkt:
 [Änderungen und Prüfgrenzen 1.4.1](docs/Aenderungen-1.4.1.md).
 Version 1.4.2 verwendet für **Muttern geben** den echten Teambestand und ergänzt
 direkte Zugaktionen zum Anhalten, Weiterfahren und Abkühlen:
@@ -42,14 +53,24 @@ ist keine Installation oder Reparatur im Spielordner nötig.
 Die Unterstützung einzelner Funktionen hängt von der jeweiligen Spielversion und dem Spielzustand ab.
 Ein erfolgreicher Build bestätigt keine Funktion im laufenden Spiel.
 
-## Benutzen
+## Benutzen und weitergeben
 
-Das vollständige Release-ZIP in einen eigenen Ordner entpacken und `Floppy.exe` starten.
-Die Ordner `runtime`, `Assets` und die übrigen Dateien neben der EXE behalten. Das eigenständige
-Windows-x64-Release bringt die .NET-Laufzeit mit; ein normaler Entwicklerbuild benötigt
-.NET 8 Desktop Runtime.
+Floppy benötigt **Windows x64**. Für die vollständigen Release-Ausgaben ist keine
+separate .NET-Installation erforderlich. Zwei Varianten stehen zur Verfügung:
 
-Die App erkennt Steam-Bibliotheken. Unter **Werkzeuge** stehen Diagnose, Reparatur,
+- **Einzelne Portable-EXE:** `Floppy-1.4.3-Portable.exe` speichern und starten. Diese eine
+  Datei kann allein weitergegeben werden. Sie enthält die .NET-Laufzeit, alle mitgelieferten
+  Loader, Module und Bilder. Beim ersten Start entpackt sie ihre Dateien automatisch in
+  einen eigenen Bundlecache; der erste Start kann deshalb etwas länger dauern.
+- **ZIP-Paket:** Das vollständige ZIP in einen eigenen Ordner entpacken und die darin
+  enthaltene `Floppy.exe` starten. Bei dieser Variante gehören `runtime`, `Assets` und
+  sämtliche übrigen Paketdateien dazu; die `Floppy.exe` daraus allein reicht nicht.
+
+Die Portable-EXE enthält Floppys Installationsdateien, keine Spiele. Erforderliche
+Spielmodule werden weiterhin über die App eingerichtet. Ein normaler Entwicklerbuild
+benötigt gegebenenfalls die .NET 8 Desktop Runtime.
+
+Die App durchsucht Steam-Bibliotheken nach dem passenden Spiel. Unter **Werkzeuge** stehen Diagnose, Reparatur,
 Wiederherstellung und die manuelle Ordnerauswahl zur Verfügung. Favoriten und die Suche
 helfen beim Navigieren. Die App muss während des Spielens geöffnet bleiben.
 Nach dem Verbinden öffnet `F1` das externe Overlay über dem aktiven Spielfenster.
@@ -126,11 +147,18 @@ direkt gesetzt werden. Fehlende Spielreferenzen ergeben eine gezielte Build-Fehl
 # Vollständige App mit allen Mod-Dateien, ohne Installation ins Spiel:
 dotnet build src/Floppy.App/Floppy.App.csproj -c Release
 
+# Beide Releasevarianten mit Paketprüfungen und SHA256 bauen:
+.\tools\publish.ps1
+
 # Desktop/Kern entwickeln, ohne installierte Unity-Spiele oder deren DLLs:
 dotnet build src/Floppy.App/Floppy.App.csproj -c Release -p:BuildGameModules=false
 
-# Vollständiges eigenständiges Windows-Paket:
-dotnet publish src/Floppy.App/Floppy.App.csproj -c Release -r win-x64 --self-contained true -o artifacts/Floppy-1.4.2-win-x64
+# Vollständiges eigenständiges Windows-Paket für die ZIP-Weitergabe:
+dotnet publish src/Floppy.App/Floppy.App.csproj -c Release -r win-x64 --self-contained true -o artifacts/Floppy-1.4.3-win-x64
+
+# Einzelne EXE mit eingebetteter Laufzeit und sämtlichen Installationsdateien:
+dotnet publish src/Floppy.App/Floppy.App.csproj -c Release -p:PublishProfile=Portable -o artifacts/Floppy-1.4.3-portable
+Copy-Item -LiteralPath .\artifacts\Floppy-1.4.3-portable\Floppy.exe -Destination .\artifacts\Floppy-1.4.3-Portable.exe
 
 # Bauen und How to Fish einrichten – Build erfolgt vor jeder Spieländerung:
 .\deploy.ps1 -GameDir "D:\SteamLibrary\steamapps\common\How to Fish\How to Fish" -App
@@ -154,14 +182,22 @@ dotnet run --project tests/Floppy.Install.Tests -c Release
 python -m unittest discover -s tools -p "test_rauchtest.py"
 
 # Zusätzlich das tatsächliche Publish-Paket auf Vollständigkeit prüfen:
-dotnet run --project tests/Floppy.Install.Tests -c Release -- artifacts/Floppy-1.4.2-win-x64
+dotnet run --project tests/Floppy.Install.Tests -c Release -- artifacts/Floppy-1.4.3-win-x64
 
 # Die ausgelieferte EXE selbst prüfen (ohne Spielzugriff oder sichtbares Fenster):
-.\artifacts\Floppy-1.4.0-win-x64\Floppy.exe --self-test "$env:TEMP\floppy-self-test.txt"
+.\artifacts\Floppy-1.4.3-win-x64\Floppy.exe --self-test "$env:TEMP\floppy-self-test.txt"
+
+# Nur die Portable-EXE in einen isolierten Ordner kopieren und prüfen:
+.\tools\test-portable.ps1 -Exe .\artifacts\Floppy-1.4.3-Portable.exe
 
 # P.I.T.T.-Backend zusätzlich mit einer vorhandenen Godot-4-Konsole prüfen:
 .\tools\test-pitt.ps1 -Godot "C:\Pfad\Godot_console.exe"
 ```
+
+Die Portable-Prüfung verwendet auf demselben Rechner einen leeren Arbeitsordner,
+einen Pfad mit Umlauten und einen eigenen Bundlecache. Sie prüft die eingebettete
+Laufzeit und Paketdateien. Das ist kein bestätigter Test auf einem zweiten echten PC
+und kein Nachweis, dass sämtliche Unrailed-2-Schalter im Spiel funktionieren.
 
 `python tools/rauchtest.py` prüft nur Verbindung und Schema eines laufenden Spiels.
 Es verändert keine Option. Das ausdrückliche `--exercise` schaltet ausschließlich die

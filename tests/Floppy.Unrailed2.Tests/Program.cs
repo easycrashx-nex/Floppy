@@ -16,8 +16,14 @@ internal static class Program
         ("disconnect invalidates components and names", Disconnect),
         ("writes require transport success and the target entity's readback", Writes),
         ("availability and info callbacks reuse one cheat snapshot without requests", Snapshot),
+        ("cheat failures roll back UI and profiles while delayed writes confirm once", CheatFailureTests.Run),
+        ("native cheat input maps flags, synchronizes UI and rejects stale targets", NativeIntegrationTests.Run),
         ("a vanished selected field requires an explicit replacement choice", MissingField),
         ("a vanished selected component never selects another component automatically", MissingGroup),
+        ("the numeric editor targets only numeric fields and reports partial writes", ModuleReliabilityTests.NumericFields),
+        ("numeric selections cannot survive a world identity change", ModuleReliabilityTests.WorldSelection),
+        ("dump selection follows exact filenames and requires a valid explicit target", ModuleReliabilityTests.DumpSelection),
+        ("dump and progress actions propagate transport and availability failures", ModuleReliabilityTests.ActionFailures),
         ("bulk writes share one target-specific readback", BulkTests.Run),
         ("direct team bolt additions validate fresh state and confirmation", MutternTests.Run),
         ("explicit train actions preserve ownership and target only attached wagons", ZugAktionenTests.Run)
@@ -155,7 +161,8 @@ internal static class Program
         for (int pass = 0; pass < 20; pass++)
             foreach (var option in options)
             {
-                available &= option.Available;
+                if (option.Id == "zug.kaputt" || option.Kind == OptionKind.Info) available &= option.Available;
+                else available &= !option.Available;
                 if (option.Kind == OptionKind.Info) option.OnChanged?.Invoke(option);
             }
         Check(available && options.Single(o => o.Id == "zug.zustand").TextValue.Contains("kaputt: false")

@@ -32,7 +32,10 @@ Die Tests führen keine Inventar- oder Spielstandsänderungen im echten Spiel au
 
 ## Starten
 
-Das vollständige neue ZIP in einen eigenen Ordner entpacken. Die bisherige Floppy-App
+Für das Release 1.4.0 das vollständige ZIP in einen eigenen Ordner entpacken. Die bisherige Floppy-App
 schließen und `Floppy.exe` aus dem neuen Ordner starten. `Assets`, `runtime` und die
 übrigen Dateien im Ordner behalten. Wenn Mortal Shell II mit Administratorrechten läuft,
 auch diese Floppy-Version über **Werkzeuge → Floppy als Administrator neu starten** öffnen.
+
+Ab 1.4.3 gibt es zusätzlich eine allein weitergebbare Portable-EXE. Die aktuellen
+Schritte stehen unter [Benutzen und weitergeben](../README.md#benutzen-und-weitergeben).

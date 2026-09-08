@@ -6,33 +6,9 @@ using Floppy.Core.Api;
 
 namespace Floppy.Unrailed2
 {
-    /// <summary>Unrailed 2 - der Sonderfall unter Floppys Spielen.
-    ///
-    /// Bei jedem anderen Spiel bringen wir unseren Code irgendwie ins Spiel hinein: als
-    /// BepInEx-Erweiterung, als Skript in der .pck, oder wir lesen von aussen im
-    /// Speicher. Hier braucht es nichts davon.
-    ///
-    /// Unrailed 2 hat ein vollstaendiges Entwicklerwerkzeug an Bord, das die Entwickler
-    /// nur hinter einem Schalter versteckt haben. Steht EnableWebDebug in der
-    /// Einstellungsdatei, oeffnet das Spiel beim Start selbst einen kleinen Webserver
-    /// auf localhost:8001. Darueber laesst sich die laufende Welt auslesen, jedes Feld
-    /// jeder Entitaet beschreiben, der Weltzustand sichern und zurueckspielen, und der
-    /// Fortschritt verwalten.
-    ///
-    /// Das ist aus zwei Gruenden der bessere Weg als alles Selbstgebaute:
-    ///
-    /// Erstens veraendern wir keine einzige Spieldatei und haengen uns in nichts ein -
-    /// wir legen einen Schalter um, den das Spiel selbst mitbringt.
-    ///
-    /// Zweitens ist es bei diesem Spiel der einzig gangbare. Unrailed 2 rechnet
-    /// deterministisch: Jeder Mitspieler simuliert dieselbe Welt aus denselben
-    /// Eingaben. Wer von aussen in den Speicher schreibt, hat im selben Augenblick eine
-    /// andere Welt als alle anderen, und die Runde faellt auseinander. Die
-    /// Anforderungen des Entwicklerwerkzeugs gehen dagegen durch den Eingabestrom -
-    /// dieselbe Warteschlange, durch die auch ein Tastendruck laeuft.
-    ///
-    /// Daraus folgt eine Eigenheit, die man beim Bedienen wissen muss: Es gibt hier
-    /// kein "nur fuer mich". Jeder Cheat aendert die gemeinsame Welt.</summary>
+    /// <summary>Externer Adapter: Zahlen, Spielstände und Fortschritt über den Webdebugger;
+    /// ByteBool-Schalter über den versionsgeprüften Spieleingabe-Zustand.
+    /// Änderungen der Simulation gelten für die gemeinsame Runde.</summary>
     public class Unrailed2Module : IGameModule
     {
         public string ProductName => "Unrailed2";
@@ -40,10 +16,12 @@ namespace Floppy.Unrailed2
 
         public void Initialize()
         {
+            NativeCheats.Reset();
             Cheats.VergissSnapshot();
             Muttern.Vergiss();
             ZugAktionen.Vergiss();
             _art = null;
+            _auswahlWelt = null;
             _felder = new List<Feld>();
         }
 
@@ -216,7 +194,11 @@ namespace Floppy.Unrailed2
                 Kind = OptionKind.Button,
                 Scope = CheatScope.Everyone,
                 IsAvailable = () => Cheats.Verfuegbar,
-                OnInvoke = o => o.Message = Cheats.AllesAus()
+                OnInvoke = o =>
+                {
+                    if (Cheats.AllesAus(out string message)) o.Message = message;
+                    else o.Fail(message);
+                }
             });
 
             return k;
@@ -225,6 +207,7 @@ namespace Floppy.Unrailed2
         // ===================================================================== Werte
 
         private static Komponentenart _art;
+        private static string _auswahlWelt;
         private static List<Feld> _felder = new List<Feld>();
 
         private CheatCategory Werte()
@@ -237,7 +220,7 @@ namespace Floppy.Unrailed2
                 Label = "Was das ist",
                 Kind = OptionKind.Info,
                 OnChanged = o => o.TextValue =
-                    "Direktzugriff auf jeden Wert der laufenden Welt"
+                    "Direktzugriff auf die Zahlenwerte der laufenden Welt"
             });
 
             k.Add(new CheatOption
@@ -298,31 +281,41 @@ namespace Floppy.Unrailed2
             {
                 Id = "wert.setzen",
                 Label = "Setzen",
-                Description = "Schreibt den Wert bei allen Entitäten dieses Bereichs und liest " +
+                Description = "Schreibt die Zahl bei allen Entitäten mit diesem Zahlenfeld und liest " +
                               "danach zurück, ob das Spiel ihn übernommen hat.",
                 Kind = OptionKind.Button,
                 Scope = CheatScope.Everyone,
-                IsAvailable = () => Debugger.Erreichbar && Welt.ImSpiel && _art != null && GewaehltesFeld() != null,
+                IsAvailable = () => Debugger.Erreichbar && Welt.ImSpiel && _auswahlWelt == Welt.Kennung &&
+                    _art != null && GewaehltesFeld() != null,
                 OnInvoke = o =>
                 {
-                    if (!Schutz.Erlaubt(out string grund)) { o.Message = grund; return; }
+                    if (!Schutz.Erlaubt(out string grund)) { o.Fail(grund); return; }
 
+                    string welt = _auswahlWelt;
                     string gewaehlterSchluessel = GewaehltesFeld()?.Schluessel;
+                    if (!PruefeAuswahlWelt(o, welt)) return;
                     AktualisiereFelder(_art);
                     var f = GewaehltesFeld();
                     if (f == null || _art == null || f.Schluessel != gewaehlterSchluessel)
                     { o.Fail("Bitte Bereich und Wert neu auswählen"); return; }
 
-                    double wert = Registry.Find("wert.neu")?.NumberValue ?? 0;
+                    var eingabe = Registry.Find("wert.neu");
+                    double wert = eingabe?.NumberValue ?? float.NaN;
+                    if (double.IsNaN(wert) || double.IsInfinity(wert) || wert < eingabe.Min || wert > eingabe.Max)
+                    { o.Fail("Bitte eine gültige Zahl im angezeigten Bereich eingeben"); return; }
 
-                    var eids = _felder.Select(x => x.Entitaet).Distinct().ToList();
+                    var eids = _felder.Where(x => x.Schluessel == f.Schluessel).Select(x => x.Entitaet).Distinct().ToList();
                     string typ = ArtIdentitaet(_art);
+                    if (!PruefeAuswahlWelt(o, welt)) return;
+                    if (!Schutz.Erlaubt(out grund)) { o.Fail(grund); return; }
 
                     int sitzt = Welt.SetzeZahlMehrere(eids, typ, f.Schluessel, wert);
+                    if (!PruefeAuswahlWelt(o, welt)) return;
 
-                    o.Message = sitzt == 0
-                        ? "Das Spiel hat den Wert nicht übernommen"
-                        : f.Anzeige + " = " + wert + "   (" + sitzt + " von " + eids.Count + ")";
+                    if (sitzt != eids.Count)
+                        o.Fail("Änderung nicht vollständig bestätigt (" + sitzt + " von " + eids.Count + "); Spielzustand prüfen");
+                    else
+                        o.Message = f.Anzeige + " = " + wert + "   (" + sitzt + " von " + eids.Count + ")";
 
                     AktualisiereFelder(_art);
                 }
@@ -339,7 +332,20 @@ namespace Floppy.Unrailed2
 
         private static int AnzahlTraeger()
         {
-            return _felder.Select(f => f.Entitaet).Distinct().Count();
+            string feld = GewaehltesFeld()?.Schluessel;
+            return _felder.Where(f => f.Schluessel == feld).Select(f => f.Entitaet).Distinct().Count();
+        }
+
+        private static bool PruefeAuswahlWelt(CheatOption option, string welt)
+        {
+            Welt.Aktualisiere();
+            if (Debugger.Erreichbar && Welt.ImSpiel && !string.IsNullOrEmpty(welt) && welt == Welt.Kennung)
+                return true;
+            AktualisiereFelder(null);
+            var gruppe = Registry.Find("wert.gruppe");
+            if (gruppe != null) gruppe.ChoiceIndex = 0;
+            option.Fail("Welt gewechselt oder Verbindung verloren; bitte Bereich und Wert neu auswählen");
+            return false;
         }
 
         private static Feld GewaehltesFeld()
@@ -364,12 +370,17 @@ namespace Floppy.Unrailed2
 
         private static string ArtIdentitaet(Komponentenart art) => art?.NameHash ?? art?.Schluessel;
 
+        private static bool IstNumerisch(Feld feld) => feld.Entitaet >= 0 && feld.IsNumber &&
+            feld.Zahl is double zahl && !double.IsNaN(zahl) && !double.IsInfinity(zahl);
+
         private static void AktualisiereFelder(Komponentenart art)
         {
-            string gewaehlt = ArtIdentitaet(_art) == ArtIdentitaet(art) ? GewaehltesFeld()?.Schluessel : null;
+            string gewaehlt = _auswahlWelt == Welt.Kennung && ArtIdentitaet(_art) == ArtIdentitaet(art)
+                ? GewaehltesFeld()?.Schluessel : null;
             _art = art;
+            _auswahlWelt = art == null ? null : Welt.Kennung;
             _felder = art == null || !Welt.ImSpiel || !Debugger.Erreichbar
-                ? new List<Feld>() : Welt.Felder(ArtIdentitaet(art));
+                ? new List<Feld>() : Welt.Felder(ArtIdentitaet(art)).Where(IstNumerisch).ToList();
 
             var feld = Registry.Find("wert.feld");
             if (feld == null) return;
@@ -403,8 +414,7 @@ namespace Floppy.Unrailed2
                 Kind = OptionKind.Button,
                 Scope = CheatScope.Everyone,
                 IsAvailable = ImSpiel,
-                OnInvoke = o => o.Message = Debugger.Loese("createDump?name=")
-                    ? "Gesichert" : "Ging nicht"
+                OnInvoke = o => Anfrage(o, "createDump?name=", "Gesichert", partie: true)
             });
 
             k.Add(new CheatOption
@@ -413,6 +423,7 @@ namespace Floppy.Unrailed2
                 Label = "Welcher",
                 Kind = OptionKind.Choice,
                 Scope = CheatScope.Everyone,
+                IsAvailable = () => Debugger.Erreichbar,
                 Choices = new[] { "-" }
             });
 
@@ -423,14 +434,8 @@ namespace Floppy.Unrailed2
                 Description = "Setzt die ganze Runde auf diesen Stand zurück - für alle.",
                 Kind = OptionKind.Button,
                 Scope = CheatScope.Everyone,
-                OnInvoke = o =>
-                {
-                    string name = Gewaehlt("zust.welcher");
-                    if (name == null) { o.Message = "Nichts ausgewählt"; return; }
-
-                    o.Message = Debugger.Loese("openDump?name=" + Debugger.Verpacke(name))
-                        ? "Zurückgespielt: " + name : "Ging nicht";
-                }
+                IsAvailable = () => Debugger.Erreichbar && Gewaehlt("zust.welcher") != null,
+                OnInvoke = o => StandAktion(o, "openDump", "Zurückgespielt: ")
             });
 
             k.Add(new CheatOption
@@ -439,14 +444,8 @@ namespace Floppy.Unrailed2
                 Label = "Löschen",
                 Kind = OptionKind.Button,
                 Scope = CheatScope.OnlyMe,
-                OnInvoke = o =>
-                {
-                    string name = Gewaehlt("zust.welcher");
-                    if (name == null) { o.Message = "Nichts ausgewählt"; return; }
-
-                    o.Message = Debugger.Loese("deleteDump?name=" + Debugger.Verpacke(name))
-                        ? "Gelöscht" : "Ging nicht";
-                }
+                IsAvailable = () => Debugger.Erreichbar && Gewaehlt("zust.welcher") != null,
+                OnInvoke = o => StandAktion(o, "deleteDump", "Gelöscht: ")
             });
 
             return k;
@@ -466,8 +465,8 @@ namespace Floppy.Unrailed2
                               "entsperren gibt.",
                 Kind = OptionKind.Button,
                 Scope = CheatScope.OnlyMe,
-                OnInvoke = o => o.Message = Debugger.Loese("unlockAll")
-                    ? "Freigeschaltet" : "Ging nicht"
+                IsAvailable = () => Debugger.Erreichbar,
+                OnInvoke = o => Anfrage(o, "unlockAll", "Freigeschaltet")
             });
 
             k.Add(new CheatOption
@@ -476,8 +475,8 @@ namespace Floppy.Unrailed2
                 Label = "Alle Tutorials als erledigt",
                 Kind = OptionKind.Button,
                 Scope = CheatScope.OnlyMe,
-                OnInvoke = o => o.Message = Debugger.Loese("finishTutorials")
-                    ? "Erledigt" : "Ging nicht"
+                IsAvailable = () => Debugger.Erreichbar,
+                OnInvoke = o => Anfrage(o, "finishTutorials", "Erledigt")
             });
 
             k.Add(new CheatOption
@@ -486,8 +485,8 @@ namespace Floppy.Unrailed2
                 Label = "Tutorials zurücksetzen",
                 Kind = OptionKind.Button,
                 Scope = CheatScope.OnlyMe,
-                OnInvoke = o => o.Message = Debugger.Loese("clearTutorial")
-                    ? "Zurückgesetzt" : "Ging nicht"
+                IsAvailable = () => Debugger.Erreichbar,
+                OnInvoke = o => Anfrage(o, "clearTutorial", "Zurückgesetzt")
             });
 
             k.Add(new CheatOption
@@ -523,21 +522,19 @@ namespace Floppy.Unrailed2
                 Description = "Löscht den Spielfortschritt. Nicht rückgängig zu machen.",
                 Kind = OptionKind.Button,
                 Scope = CheatScope.OnlyMe,
-                IsAvailable = () => Registry.Find("fort.riegel")?.BoolValue == true,
+                IsAvailable = () => Debugger.Erreichbar && Registry.Find("fort.riegel")?.BoolValue == true,
                 OnInvoke = o =>
                 {
                     var riegel = Registry.Find("fort.riegel");
 
                     if (riegel == null || !riegel.BoolValue)
                     {
-                        o.Message = "Erst den Schalter darüber umlegen";
+                        o.Fail("Erst den Schalter darüber umlegen");
                         return;
                     }
 
-                    bool gut = Debugger.Loese("clearProgress");
+                    Anfrage(o, "clearProgress", "Fortschritt gelöscht");
                     riegel.BoolValue = false;
-
-                    o.Message = gut ? "Fortschritt gelöscht" : "Ging nicht";
                 }
             });
 
@@ -545,6 +542,37 @@ namespace Floppy.Unrailed2
         }
 
         // ================================================================== Kleinkram
+
+        private static void Anfrage(CheatOption option, string pfad, string meldung, bool partie = false)
+        {
+            if (!Debugger.Erreichbar || (partie && !Welt.ImSpiel))
+            { option.Fail(partie ? "Keine erreichbare laufende Partie" : "Spielzugang nicht erreichbar"); return; }
+            if (!Debugger.Loese(pfad))
+            { option.Fail("Anfrage nicht bestätigt: " + Debugger.Zustand); return; }
+            option.Message = meldung;
+        }
+
+        private static void StandAktion(CheatOption option, string befehl, string meldung)
+        {
+            if (!Debugger.Erreichbar) { option.Fail("Spielzugang nicht erreichbar"); return; }
+            string name = Gewaehlt("zust.welcher");
+            if (name == null) { option.Fail("Bitte einen Spielstand auswählen"); return; }
+            if (!AktualisiereStaende().Contains(name, StringComparer.Ordinal))
+            { option.Fail("Spielstand nicht mehr verfügbar; bitte erneut auswählen"); return; }
+            Anfrage(option, befehl + "?name=" + Debugger.Verpacke(name), meldung + name);
+        }
+
+        private static List<string> AktualisiereStaende()
+        {
+            var zust = Registry.Find("zust.welcher");
+            if (zust == null) return new List<string>();
+            string vorher = Gewaehlt("zust.welcher");
+            var namen = Namen("listDumps");
+            var anzeige = new[] { "-" }.Concat(namen.Distinct(StringComparer.Ordinal)).ToArray();
+            if (!anzeige.SequenceEqual(zust.Choices)) zust.Choices = anzeige;
+            zust.ChoiceIndex = Math.Max(0, Array.IndexOf(anzeige, vorher));
+            return namen;
+        }
 
         /// <summary>Die Namen aus einer Antwort der Form {"files":[{"name":...}]}.</summary>
         private static List<string> Namen(string pfad)
@@ -588,6 +616,7 @@ namespace Floppy.Unrailed2
 
                 if (gruppe != null)
                 {
+                    if (_art != null && _auswahlWelt != Welt.Kennung) AktualisiereFelder(null);
                     var arten = Welt.ImSpiel && Debugger.Erreichbar
                         ? Welt.Arten() : new List<Komponentenart>();
 
@@ -601,19 +630,7 @@ namespace Floppy.Unrailed2
                     AktualisiereFelder(index < 0 ? null : arten[index]);
                 }
 
-                var zust = Registry.Find("zust.welcher");
-
-                if (zust != null)
-                {
-                    var namen = Namen("listDumps");
-                    var anzeige = namen.Count == 0 ? new[] { "-" } : namen.ToArray();
-
-                    if (!anzeige.SequenceEqual(zust.Choices))
-                    {
-                        zust.Choices = anzeige;
-                        if (zust.ChoiceIndex >= anzeige.Length) zust.ChoiceIndex = 0;
-                    }
-                }
+                AktualisiereStaende();
             }
             catch (Exception ex)
             {

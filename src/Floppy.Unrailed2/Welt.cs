@@ -29,6 +29,7 @@ namespace Floppy.Unrailed2
         public string TypNameHash;
         public string Schluessel;
         public string Wert;
+        public bool IsNumber;
 
         public string Anzeige => Namen.Feld(TypNameHash ?? TypSchluessel, Schluessel);
 
@@ -219,6 +220,7 @@ namespace Floppy.Unrailed2
                                     TypSchluessel = art.Schluessel,
                                     TypNameHash = art.NameHash,
                                     Schluessel = fschl,
+                                    IsNumber = f.TryGetProperty("value", out var wert) && wert.ValueKind == JsonValueKind.Number,
                                     Wert = Rohwert(f)
                                 });
                             }

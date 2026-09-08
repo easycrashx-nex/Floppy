@@ -23,7 +23,9 @@ Echtes exklusives Vollbild ist nicht unterstützt; Floppy verändert keine Anzei
 Das Spiel beenden, die neue Floppy-App starten und unter **Werkzeuge → Floppy einrichten /
 reparieren** das Spielmodul aktualisieren. Danach das Spiel neu starten. Ein bereits laufendes
 altes Modul kann weiterhin sein altes Menü anzeigen, bis das Spiel neu gestartet wurde.
-Immer das vollständige Release-Paket entpacken und den Ordner `runtime` neben der EXE behalten.
+Für das damalige Release 1.3.0 das vollständige Paket entpacken und den Ordner `runtime`
+neben der EXE behalten. Ab 1.4.3 gibt es zusätzlich eine allein weitergebbare Portable-EXE;
+die aktuellen Schritte stehen unter [Benutzen und weitergeben](../README.md#benutzen-und-weitergeben).
 
 Die Unity-Menüoberfläche und das P.I.T.T.-Menüskript wurden entfernt. Die P.I.T.T.-Reparatur
 migriert bestehende verwaltete Installationen und behält Sicherungen und Wiederherstellung bei.

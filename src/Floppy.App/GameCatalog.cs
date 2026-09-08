@@ -47,10 +47,13 @@ public static class GameCatalog
 
     /// <summary>Lädt die Spieleliste und sucht jedes davon in der Steam-Bibliothek.</summary>
     public static List<SupportedGame> Scan(IReadOnlyDictionary<string, string>? foldersByGame = null)
+        => Scan(foldersByGame, SteamLibrary.FindSteamPath());
+
+    // The explicit Steam root also permits isolated discovery tests with temporary libraries.
+    internal static List<SupportedGame> Scan(IReadOnlyDictionary<string, string>? foldersByGame, string? steamPath)
     {
         var games = Load();
 
-        string? steamPath = SteamLibrary.FindSteamPath();
         var folders = steamPath == null ? new List<string>() : SteamLibrary.FindLibraryFolders(steamPath);
 
         foreach (var game in games)
@@ -58,7 +61,7 @@ public static class GameCatalog
             if (string.IsNullOrWhiteSpace(game.AppId)) continue;
 
             game.InstallDir = foldersByGame != null && foldersByGame.TryGetValue(game.ProductName, out string? manual)
-                ? manual : SteamLibrary.FindInstallDir(folders, game.AppId);
+                ? SteamLibrary.FindGameDirectory(manual, game.AppId) : SteamLibrary.FindInstallDir(folders, game.AppId);
             game.Installed = game.InstallDir != null && Directory.Exists(game.InstallDir);
 
             if (game.Installed && steamPath != null)

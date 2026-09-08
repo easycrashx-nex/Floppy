@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security;
 using System.Text.RegularExpressions;
 using Microsoft.Win32;
 
@@ -17,9 +18,9 @@ public static class SteamLibrary
         // Steam trägt seinen Pfad selbst in die Registry ein.
         string?[] candidates =
         {
-            Registry.GetValue(@"HKEY_CURRENT_USER\Software\Valve\Steam", "SteamPath", null) as string,
-            Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Valve\Steam", "InstallPath", null) as string,
-            Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Valve\Steam", "InstallPath", null) as string,
+            RegistryPath(@"HKEY_CURRENT_USER\Software\Valve\Steam", "SteamPath"),
+            RegistryPath(@"HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Valve\Steam", "InstallPath"),
+            RegistryPath(@"HKEY_LOCAL_MACHINE\SOFTWARE\Valve\Steam", "InstallPath"),
             @"C:\Program Files (x86)\Steam",
             @"C:\Program Files\Steam"
         };
@@ -32,6 +33,12 @@ public static class SteamLibrary
         }
 
         return null;
+    }
+
+    private static string? RegistryPath(string key, string name)
+    {
+        try { return Registry.GetValue(key, name, null) as string; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SecurityException) { return null; }
     }
 
     /// <summary>Alle Bibliotheksordner - Steam verteilt Spiele auf mehrere Laufwerke.</summary>
@@ -61,6 +68,8 @@ public static class SteamLibrary
             }
         }
         catch (IOException) { /* Steam schreibt gerade - beim nächsten Start klappt es */ }
+        catch (UnauthorizedAccessException) { /* Andere Bibliotheken bleiben nutzbar. */ }
+        catch (SecurityException) { }
 
         return folders;
     }
@@ -81,9 +90,12 @@ public static class SteamLibrary
                 string dir = Path.Combine(folder, "common", match.Groups[1].Value);
                 if (!Directory.Exists(dir)) continue;
 
-                return OrdnerMitExe(dir);
+                string? installed = FindGameDirectory(dir, appId);
+                if (installed != null) return installed;
             }
             catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+            catch (SecurityException) { }
         }
 
         return null;
@@ -94,12 +106,41 @@ public static class SteamLibrary
     /// Steams Manifest nennt nur den obersten Ordner, und manche Spiele - How to Fish
     /// zum Beispiel - packen ihre Dateien eine Ebene tiefer. Der Lader muss aber direkt
     /// neben der Exe liegen, sonst passiert schlicht nichts.</summary>
-    private static string OrdnerMitExe(string start)
+    public static string? FindGameDirectory(string start, string appId)
     {
-        if (SpielExe(start, SearchOption.TopDirectoryOnly) != null) return start;
-
-        string? tiefer = SpielExe(start, SearchOption.AllDirectories);
-        return tiefer != null ? Path.GetDirectoryName(tiefer)! : start;
+        if (!Directory.Exists(start)) return null;
+        (string? exe, string? marker) = appId switch
+        {
+            "4001890" => ("How to Fish.exe", "How to Fish_Data"),
+            "4502710" => ("Stonewards.exe", "Stonewards_Data"),
+            "2896260" => ("ODDCORE.exe", "ODDCORE_Data"),
+            "4026250" => ("projectpitt.exe", "projectpitt.pck"),
+            "2584270" => ("MortalShell2-Win64-Shipping.exe", null),
+            "2211170" => ("Unrailed2.exe", null),
+            _ => (null, null)
+        };
+        if (exe == null)
+        {
+            string? candidate = SpielExe(start, SearchOption.TopDirectoryOnly) ?? SpielExe(start, SearchOption.AllDirectories);
+            return candidate == null ? null : Path.GetDirectoryName(candidate);
+        }
+        try
+        {
+            var options = new EnumerationOptions
+            {
+                RecurseSubdirectories = true, IgnoreInaccessible = true,
+                AttributesToSkip = FileAttributes.ReparsePoint, MatchCasing = MatchCasing.CaseInsensitive
+            };
+            return Directory.EnumerateFiles(start, exe, options)
+                .Select(Path.GetDirectoryName)
+                .Where(dir => dir != null && (marker == null ||
+                    (marker.EndsWith("_Data", StringComparison.Ordinal)
+                        ? Directory.Exists(Path.Combine(dir, marker)) : File.Exists(Path.Combine(dir, marker)))))
+                .OrderBy(dir => dir!.Count(c => c == Path.DirectorySeparatorChar))
+                .ThenBy(dir => dir, StringComparer.OrdinalIgnoreCase)
+                .FirstOrDefault();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SecurityException) { return null; }
     }
 
     /// <summary>Die erste Exe, die nach dem Spiel selbst aussieht - Absturzhelfer und

@@ -19,6 +19,10 @@ internal static class SelfCheck
         void Check(bool ok, string label) { report.AppendLine((ok ? "OK " : "FAIL ") + label); if (!ok) errors++; }
         try
         {
+            var restart = MainWindow.ElevatedRestartInfo();
+            Check(restart.FileName == Environment.ProcessPath && File.Exists(restart.FileName)
+                && restart.WorkingDirectory == Path.GetDirectoryName(restart.FileName),
+                "Neustart verweist auf die gestartete EXE");
             Check(NumberInput.TryParse("1,5", out double number) && number == 1.5, "Dezimalkomma");
             Check(!NumberInput.TryParse("Infinity", out _), "Ungültige Zahl abgewiesen");
             var window = new MainWindow(offline: true);
