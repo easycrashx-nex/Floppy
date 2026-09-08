@@ -3,6 +3,7 @@
     <!-- Laeuft im Client, nicht im Spiel - wie das Unreal-Modul. -->
     <TargetFramework>net8.0-windows</TargetFramework>
     <Nullable>disable</Nullable>
+    <Version>1.4.1</Version>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Floppy.Model\Floppy.Model.csproj" />

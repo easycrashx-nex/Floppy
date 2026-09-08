@@ -50,7 +50,24 @@ namespace Floppy.Unrailed2
             return Welt.Traeger(Singleton);
         }
 
-        public static bool Verfuegbar => Welt.ImSpiel && Traeger() >= 0;
+        private static IReadOnlyList<Feld> _snapshot = Array.Empty<Feld>();
+
+        internal static void VergissSnapshot() => _snapshot = Array.Empty<Feld>();
+
+        /// <summary>Einmal im Modultakt lesen; Verfügbarkeit und Anzeigen lösen kein HTTP aus.</summary>
+        internal static void AktualisiereSnapshot()
+        {
+            VergissSnapshot();
+            if (Welt.ImSpiel && Debugger.Erreichbar)
+                _snapshot = Welt.Felder(Singleton).Where(f => f.Entitaet >= 0).ToArray();
+        }
+
+        public static bool Verfuegbar => Welt.ImSpiel && Debugger.Erreichbar && _snapshot.Count > 0;
+
+        public static string Zustand => !Debugger.Erreichbar ? Debugger.Zustand
+            : !Welt.ImSpiel ? "Noch keine laufende Partie"
+            : Verfuegbar ? "Zug-, Bau- und Automatikoptionen verfügbar"
+            : "Runde erkannt; das Spiel stellt Zug-, Bau- und Automatikoptionen nicht bereit";
 
         // ------------------------------------------------------------------ Schreiben
 
@@ -59,7 +76,7 @@ namespace Floppy.Unrailed2
             if (!Schutz.Erlaubt(out string grund)) return grund;
 
             long eid = Traeger();
-            if (eid < 0) return "Keine laufende Partie";
+            if (eid < 0) return Zustand;
 
             return Welt.SetzeSchalter(eid, Singleton, feld, an)
                 ? name + (an ? ": an" : ": aus")
@@ -71,7 +88,7 @@ namespace Floppy.Unrailed2
             if (!Schutz.Erlaubt(out string grund)) return grund;
 
             long eid = Traeger();
-            if (eid < 0) return "Keine laufende Partie";
+            if (eid < 0) return Zustand;
 
             return Welt.SetzeZahl(eid, Singleton, feld, wert)
                 ? name + ": " + wert
@@ -80,7 +97,7 @@ namespace Floppy.Unrailed2
 
         private static string Lies(string feld)
         {
-            return Welt.Lies(Singleton, feld) ?? "-";
+            return Verfuegbar ? _snapshot.FirstOrDefault(f => f.Schluessel == feld)?.Wert ?? "-" : "-";
         }
 
         // ------------------------------------------------------------------- Rubriken
@@ -302,7 +319,7 @@ namespace Floppy.Unrailed2
             if (!Schutz.Erlaubt(out string grund)) return grund;
 
             long eid = Traeger();
-            if (eid < 0) return "Keine laufende Partie";
+            if (eid < 0) return Zustand;
 
             var felder = new[]
             {
@@ -314,8 +331,10 @@ namespace Floppy.Unrailed2
             foreach (string f in felder)
                 Welt.SetzeSchalter(eid, Singleton, f, false);
 
-            // Einmal nachlesen statt nach jedem Schalter einzeln.
-            int aus = felder.Count(f => Welt.ZaehleTreffer(Singleton, f, "false") > 0);
+            // Den Gesamtzustand nach allen Schreibversuchen noch einmal prüfen.
+            var gelesen = Welt.Felder(Singleton);
+            int aus = felder.Count(f => gelesen.Any(w => w.Entitaet == eid && w.Schluessel == f &&
+                string.Equals(w.Wert?.Trim(), "false", StringComparison.OrdinalIgnoreCase)));
 
             return aus == felder.Length
                 ? "Alle Cheats zurückgenommen"

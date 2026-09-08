@@ -40,12 +40,22 @@ namespace Floppy.Unrailed2
 
         public void Initialize()
         {
-            Welt.Aktualisiere();
+            Cheats.VergissSnapshot();
+            _art = null;
+            _felder = new List<Feld>();
         }
 
         public void Update()
         {
             Welt.Aktualisiere();
+            Cheats.AktualisiereSnapshot();
+            ListenPflegen();
+            foreach (var option in Registry.AllOptions)
+            {
+                if (option.Kind != OptionKind.Info || option.OnChanged == null) continue;
+                try { option.OnChanged(option); }
+                catch (Exception ex) { Log.Warning("Unrailed2: Anzeige " + option.Id + " - " + ex.Message); }
+            }
         }
 
         public void SetMenuOpen(bool open) { }
@@ -76,7 +86,9 @@ namespace Floppy.Unrailed2
                 return false;
             }
 
-            status = Welt.ImSpiel ? "Bereit - " + Welt.Lage : "Bereit - noch im Menü";
+            status = !Welt.ImSpiel ? "Verbunden - noch im Menü"
+                : Cheats.Verfuegbar ? "Bereit - " + Welt.Lage
+                : Welt.Lage + " - Zug-/Bauoptionen vom Spiel nicht bereitgestellt";
             return true;
         }
 
@@ -115,6 +127,14 @@ namespace Floppy.Unrailed2
                         : Debugger.Erreichbar ? Schutz.Lagebericht()
                         : Debugger.Zustand;
                 }
+            });
+
+            k.Add(new CheatOption
+            {
+                Id = "u2.funktionen",
+                Label = "Funktionen der Runde",
+                Kind = OptionKind.Info,
+                OnChanged = o => o.TextValue = Cheats.Zustand
             });
 
             k.Add(new CheatOption
@@ -222,11 +242,8 @@ namespace Floppy.Unrailed2
                 {
                     var arten = Welt.Arten();
 
-                    if (o.ChoiceIndex >= 0 && o.ChoiceIndex < arten.Count)
-                    {
-                        _art = arten[o.ChoiceIndex];
-                        _felder = Welt.Felder(_art.Schluessel);
-                    }
+                    AktualisiereFelder(o.ChoiceIndex > 0 && o.ChoiceIndex <= arten.Count
+                        ? arten[o.ChoiceIndex - 1] : null);
                 }
             });
 
@@ -237,7 +254,7 @@ namespace Floppy.Unrailed2
                 Kind = OptionKind.Choice,
                 Scope = CheatScope.Everyone,
                 IsAvailable = ImSpiel,
-                Choices = new[] { "-" }
+                Choices = new[] { "(Wert wählen)" }
             });
 
             k.Add(new CheatOption
@@ -273,30 +290,29 @@ namespace Floppy.Unrailed2
                               "danach zurück, ob das Spiel ihn übernommen hat.",
                 Kind = OptionKind.Button,
                 Scope = CheatScope.Everyone,
-                IsAvailable = ImSpiel,
+                IsAvailable = () => Debugger.Erreichbar && Welt.ImSpiel && _art != null && GewaehltesFeld() != null,
                 OnInvoke = o =>
                 {
                     if (!Schutz.Erlaubt(out string grund)) { o.Message = grund; return; }
 
+                    string gewaehlterSchluessel = GewaehltesFeld()?.Schluessel;
+                    AktualisiereFelder(_art);
                     var f = GewaehltesFeld();
-                    if (f == null || _art == null) { o.Message = "Nichts ausgewählt"; return; }
+                    if (f == null || _art == null || f.Schluessel != gewaehlterSchluessel)
+                    { o.Fail("Bitte Bereich und Wert neu auswählen"); return; }
 
                     double wert = Registry.Find("wert.neu")?.NumberValue ?? 0;
 
                     var eids = _felder.Select(x => x.Entitaet).Distinct().ToList();
+                    string typ = ArtIdentitaet(_art);
 
-                    foreach (long eid in eids)
-                        Welt.SetzeZahl(eid, _art.Schluessel, f.Schluessel, wert);
-
-                    // Einmal am Ende nachsehen, statt nach jedem einzelnen Schreiben.
-                    string erwartet = wert.ToString("R", System.Globalization.CultureInfo.InvariantCulture);
-                    int sitzt = Welt.ZaehleTreffer(_art.Schluessel, f.Schluessel, erwartet);
+                    int sitzt = Welt.SetzeZahlMehrere(eids, typ, f.Schluessel, wert);
 
                     o.Message = sitzt == 0
                         ? "Das Spiel hat den Wert nicht übernommen"
                         : f.Anzeige + " = " + wert + "   (" + sitzt + " von " + eids.Count + ")";
 
-                    _felder = Welt.Felder(_art.Schluessel);
+                    AktualisiereFelder(_art);
                 }
             });
 
@@ -320,9 +336,10 @@ namespace Floppy.Unrailed2
             if (wahl == null) return null;
 
             var namen = Feldnamen();
-            if (wahl.ChoiceIndex < 0 || wahl.ChoiceIndex >= namen.Count) return null;
+            int index = wahl.ChoiceIndex - 1;
+            if (index < 0 || index >= namen.Count) return null;
 
-            string name = namen[wahl.ChoiceIndex];
+            string name = namen[index];
             return _felder.FirstOrDefault(f => f.Anzeige == name);
         }
 
@@ -331,6 +348,23 @@ namespace Floppy.Unrailed2
         private static List<string> Feldnamen()
         {
             return _felder.Select(f => f.Anzeige).Distinct().OrderBy(n => n).ToList();
+        }
+
+        private static string ArtIdentitaet(Komponentenart art) => art?.NameHash ?? art?.Schluessel;
+
+        private static void AktualisiereFelder(Komponentenart art)
+        {
+            string gewaehlt = ArtIdentitaet(_art) == ArtIdentitaet(art) ? GewaehltesFeld()?.Schluessel : null;
+            _art = art;
+            _felder = art == null || !Welt.ImSpiel || !Debugger.Erreichbar
+                ? new List<Feld>() : Welt.Felder(ArtIdentitaet(art));
+
+            var feld = Registry.Find("wert.feld");
+            if (feld == null) return;
+            var namen = Feldnamen();
+            feld.Choices = new[] { "(Wert wählen)" }.Concat(namen).ToArray();
+            var vorher = _felder.FirstOrDefault(f => f.Schluessel == gewaehlt);
+            feld.ChoiceIndex = vorher == null ? 0 : namen.IndexOf(vorher.Anzeige) + 1;
         }
 
         // ============================================================== Spielstaende
@@ -532,7 +566,7 @@ namespace Floppy.Unrailed2
             return wahl == "-" ? null : wahl;
         }
 
-        /// <summary>Fuehrt die Auswahllisten nach. Aus dem Takt des Hosts gerufen, weil
+        /// <summary>Fuehrt die Auswahllisten nach. Aus dem Modultakt gerufen, weil
         /// sich beim Kartenwechsel alles aendert.</summary>
         internal static void ListenPflegen()
         {
@@ -542,37 +576,17 @@ namespace Floppy.Unrailed2
 
                 if (gruppe != null)
                 {
-                    var arten = Welt.Arten();
+                    var arten = Welt.ImSpiel && Debugger.Erreichbar
+                        ? Welt.Arten() : new List<Komponentenart>();
 
                     var anzeige = arten.Count == 0
                         ? new[] { "(keine Partie)" }
-                        : arten.Select(a => a.Anzeige + "  (" + a.Anzahl + ")").ToArray();
+                        : new[] { "(Bereich wählen)" }.Concat(arten.Select(a => a.Anzeige + "  (" + a.Anzahl + ")")).ToArray();
 
-                    if (!anzeige.SequenceEqual(gruppe.Choices))
-                    {
-                        gruppe.Choices = anzeige;
-                        if (gruppe.ChoiceIndex >= anzeige.Length) gruppe.ChoiceIndex = 0;
-
-                        _art = arten.Count > 0
-                            ? arten[Math.Min(gruppe.ChoiceIndex, arten.Count - 1)]
-                            : null;
-
-                        _felder = _art == null ? new List<Feld>() : Welt.Felder(_art.Schluessel);
-                    }
-                }
-
-                var feld = Registry.Find("wert.feld");
-
-                if (feld != null)
-                {
-                    var fnamen = Feldnamen();
-                    var anzeige = fnamen.Count == 0 ? new[] { "-" } : fnamen.ToArray();
-
-                    if (!anzeige.SequenceEqual(feld.Choices))
-                    {
-                        feld.Choices = anzeige;
-                        if (feld.ChoiceIndex >= anzeige.Length) feld.ChoiceIndex = 0;
-                    }
+                    int index = arten.FindIndex(a => ArtIdentitaet(a) == ArtIdentitaet(_art));
+                    if (!anzeige.SequenceEqual(gruppe.Choices)) gruppe.Choices = anzeige;
+                    gruppe.ChoiceIndex = index + 1;
+                    AktualisiereFelder(index < 0 ? null : arten[index]);
                 }
 
                 var zust = Registry.Find("zust.welcher");

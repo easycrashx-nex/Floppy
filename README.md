@@ -1,4 +1,4 @@
-# Floppy 1.4.0
+# Floppy 1.4.1
 
 Floppy ist ein modulares Windows-Modmenü mit Desktop-App und externem Overlay.
 Die Module definieren ihre Optionen einmal; Desktop und Overlay verwenden dieselbe Oberfläche.
@@ -13,6 +13,10 @@ Version 1.3.2 erkennt auch das Fenster eines erhöht gestarteten Spiels mit norm
 Benutzerrechten: [Änderungen 1.3.2](docs/Aenderungen-1.3.2.md).
 Version 1.4.0 ergänzt für Mortal Shell II einen Gegenstandskatalog mit Kategorien,
 Itemsuche und Bildern: [Änderungen 1.4.0](docs/Aenderungen-1.4.0.md).
+Version 1.4.1 korrigiert die Unrailed-2-Komponentenabfragen und Statusaktualisierung.
+Die aktuelle Spielversion stellt die benötigte Cheat-Komponente in den geprüften Runden
+weiterhin nicht bereit; Zug-, Bau- und Automatikoptionen bleiben dort eingeschränkt:
+[Änderungen und Prüfgrenzen 1.4.1](docs/Aenderungen-1.4.1.md).
 
 Für Mortal Shell II bleibt die vom Spiel mitgelieferte `.pdb` neben der eigentlichen
 Spiel-EXE erforderlich. Floppy liest daraus die zur EXE passenden Adressen lokal.
@@ -123,7 +127,7 @@ dotnet build src/Floppy.App/Floppy.App.csproj -c Release
 dotnet build src/Floppy.App/Floppy.App.csproj -c Release -p:BuildGameModules=false
 
 # Vollständiges eigenständiges Windows-Paket:
-dotnet publish src/Floppy.App/Floppy.App.csproj -c Release -r win-x64 --self-contained true -o artifacts/Floppy-1.4.0-win-x64
+dotnet publish src/Floppy.App/Floppy.App.csproj -c Release -r win-x64 --self-contained true -o artifacts/Floppy-1.4.1-win-x64
 
 # Bauen und How to Fish einrichten – Build erfolgt vor jeder Spieländerung:
 .\deploy.ps1 -GameDir "D:\SteamLibrary\steamapps\common\How to Fish\How to Fish" -App
@@ -147,7 +151,7 @@ dotnet run --project tests/Floppy.Install.Tests -c Release
 python -m unittest discover -s tools -p "test_rauchtest.py"
 
 # Zusätzlich das tatsächliche Publish-Paket auf Vollständigkeit prüfen:
-dotnet run --project tests/Floppy.Install.Tests -c Release -- artifacts/Floppy-1.4.0-win-x64
+dotnet run --project tests/Floppy.Install.Tests -c Release -- artifacts/Floppy-1.4.1-win-x64
 
 # Die ausgelieferte EXE selbst prüfen (ohne Spielzugriff oder sichtbares Fenster):
 .\artifacts\Floppy-1.4.0-win-x64\Floppy.exe --self-test "$env:TEMP\floppy-self-test.txt"

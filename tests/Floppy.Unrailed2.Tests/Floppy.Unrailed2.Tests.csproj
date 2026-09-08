@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Floppy.Model\Floppy.Model.csproj" />
+    <Compile Include="..\..\src\Floppy.Unrailed2\Welt.cs" Link="Welt.cs" />
+    <Compile Include="..\..\src\Floppy.Unrailed2\Namen.cs" Link="Namen.cs" />
+    <Compile Include="..\..\src\Floppy.Unrailed2\Cheats.cs" Link="Cheats.cs" />
+    <Compile Include="..\..\src\Floppy.Unrailed2\Schutz.cs" Link="Schutz.cs" />
+    <Compile Include="..\..\src\Floppy.Unrailed2\Unrailed2Module.cs" Link="Unrailed2Module.cs" />
+  </ItemGroup>
+</Project>

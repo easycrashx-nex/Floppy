@@ -65,6 +65,9 @@ namespace Floppy.Unrailed2
             bool initialisiert = false;
             _takt = new HostTakt(() =>
             {
+                if (_takt.WirdBeendet) return;
+                Dispatcher.Pump();
+                if (_takt.WirdBeendet) return;
                 if (!initialisiert)
                 {
                     modul.Initialize();
@@ -72,10 +75,8 @@ namespace Floppy.Unrailed2
                 }
 
                 if (_takt.WirdBeendet) return;
-                Dispatcher.Pump();
-                if (_takt.WirdBeendet) return;
                 modul.Update();
-                if (!_takt.WirdBeendet) Unrailed2Module.ListenPflegen();
+                if (!_takt.WirdBeendet) Dispatcher.Pump();
             }, () => { }, ex => Log.Error("Unrailed2-Takt: " + ex.Message), 500, 1000);
 
             meldung = Spiel.Laeuft ? "Unrailed 2 angebunden" : "Bereit - Unrailed 2 läuft noch nicht";

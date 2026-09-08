@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -8,15 +8,15 @@ namespace Floppy.Unrailed2
 {
     /// <summary>Eine Komponentenart in der Welt.
     ///
-    /// Schluessel ist, womit das Spiel angesprochen wird (eine Zahl). Anzeige ist, was
-    /// wir dem Menschen zeigen. Die beiden auseinanderzuhalten ist der ganze Trick:
-    /// Wer den lesbaren Namen in den Befehl schreibt, bekommt "Component not found".</summary>
+    /// Schluessel ist die laufende Nummer für Abfragen. NameHash identifiziert den Typ
+    /// für Namenstabelle und Schreibbefehle; die beiden Werte sind nicht austauschbar.</summary>
     internal sealed class Komponentenart
     {
         public string Schluessel;
+        public string NameHash;
         public int Anzahl;
 
-        public string Anzeige => Namen.Typ(Schluessel);
+        public string Anzeige => Namen.Typ(NameHash ?? Schluessel);
 
         public override string ToString() => Anzeige + " (" + Anzahl + ")";
     }
@@ -26,10 +26,11 @@ namespace Floppy.Unrailed2
     {
         public long Entitaet;
         public string TypSchluessel;
+        public string TypNameHash;
         public string Schluessel;
         public string Wert;
 
-        public string Anzeige => Namen.Feld(TypSchluessel, Schluessel);
+        public string Anzeige => Namen.Feld(TypNameHash ?? TypSchluessel, Schluessel);
 
         public double? Zahl =>
             double.TryParse(Wert, NumberStyles.Float, CultureInfo.InvariantCulture, out double d)
@@ -52,37 +53,55 @@ namespace Floppy.Unrailed2
         /// <summary>Der rohe Weltname aus worldInfo - "Menu" oder der Spielmodus.</summary>
         public static string Lage { get; private set; } = "unbekannt";
 
-        public static bool ImSpiel => Lage != "unbekannt" && Lage != "Menu" && Lage != "?";
+        public static bool ImSpiel => !string.IsNullOrWhiteSpace(Lage) && Lage != "unbekannt"
+            && !string.Equals(Lage, "Menu", StringComparison.OrdinalIgnoreCase) && Lage != "?";
 
         private static List<Komponentenart> _arten = new List<Komponentenart>();
+        private static List<Komponentenart> _registriert = new List<Komponentenart>();
         private static DateTime _artenGeholt = DateTime.MinValue;
+        private static string _weltId;
+
+        private static void VergissWelt()
+        {
+            _arten = new List<Komponentenart>();
+            _registriert = new List<Komponentenart>();
+            _artenGeholt = DateTime.MinValue;
+            Namen.Vergiss();
+        }
 
         public static void Aktualisiere()
         {
             string vorher = Lage;
+            string weltId = null;
 
             using (var doc = Debugger.Frage("worldInfo"))
             {
-                if (doc == null) { Lage = "unbekannt"; return; }
+                if (doc == null)
+                {
+                    Lage = "unbekannt";
+                    _weltId = null;
+                    VergissWelt();
+                    return;
+                }
 
                 try
                 {
                     var cfg = doc.RootElement.GetProperty("config");
                     Lage = cfg.GetArrayLength() > 1 ? cfg[1].GetString() : "?";
+                    weltId = Text(doc.RootElement, "id");
                 }
                 catch { Lage = "?"; }
             }
 
             // Beim Weltwechsel ist alles Gemerkte hinfaellig: andere Entitaeten, andere
             // Zahlen, unter Umstaenden auch eine andere Namenstabelle.
-            if (Lage != vorher)
+            if (Lage != vorher || weltId != _weltId)
             {
-                _arten = new List<Komponentenart>();
-                _artenGeholt = DateTime.MinValue;
-                Namen.Vergiss();
+                VergissWelt();
             }
+            _weltId = weltId;
 
-            Namen.LadeFallsNoetig();
+            if (ImSpiel) Namen.LadeFallsNoetig();
         }
 
         /// <summary>Welche Komponentenarten es in der laufenden Welt gibt.
@@ -92,6 +111,7 @@ namespace Floppy.Unrailed2
         /// Bilder, ohne dass die Anzeige spuerbar frischer waere.</summary>
         public static List<Komponentenart> Arten(bool erzwingen = false)
         {
+            if (!ImSpiel || !Debugger.Erreichbar) return new List<Komponentenart>();
             if (!erzwingen && (DateTime.UtcNow - _artenGeholt).TotalSeconds < 3)
                 return _arten;
 
@@ -99,7 +119,11 @@ namespace Floppy.Unrailed2
 
             using (var doc = Debugger.Frage("componentMap"))
             {
-                if (doc == null) return _arten;
+                if (doc == null)
+                {
+                    VergissWelt();
+                    return _arten;
+                }
 
                 var neu = new List<Komponentenart>();
 
@@ -111,10 +135,9 @@ namespace Floppy.Unrailed2
 
                         neu.Add(new Komponentenart
                         {
-                            // Der Schluessel des Eintrags ist das, womit das Spiel die
-                            // Komponente selbst benennt. Ein "id"-Feld darin hat Vorrang,
-                            // falls es eins gibt.
+                            // Queries use the runtime ID; labels and changeValue use the type hash.
                             Schluessel = Text(k, "id") ?? eintrag.Name,
+                            NameHash = Text(k, "name"),
                             Anzahl = Ganzzahl(k, "count")
                         });
                     }
@@ -122,9 +145,11 @@ namespace Floppy.Unrailed2
                 catch (Exception ex)
                 {
                     Floppy.Core.Log.Warning("Unrailed2: componentMap unlesbar - " + ex.Message);
+                    VergissWelt();
                     return _arten;
                 }
 
+                _registriert = neu;
                 _arten = neu.Where(a => a.Anzahl > 0)
                             .OrderBy(a => a.Anzeige, StringComparer.OrdinalIgnoreCase)
                             .ToList();
@@ -135,7 +160,10 @@ namespace Floppy.Unrailed2
 
         public static Komponentenart FindeArt(string schluessel)
         {
-            return Arten().FirstOrDefault(a => a.Schluessel == schluessel);
+            Arten();
+            if (!ImSpiel || !Debugger.Erreichbar) return null;
+            return _registriert.FirstOrDefault(a => a.Schluessel == schluessel)
+                ?? _registriert.FirstOrDefault(a => a.NameHash == schluessel);
         }
 
         /// <summary>Die Entitaet, die eine bestimmte Komponente traegt. Bei den
@@ -151,8 +179,11 @@ namespace Floppy.Unrailed2
         {
             var raus = new List<Feld>();
             if (string.IsNullOrEmpty(typSchluessel)) return raus;
+            var art = FindeArt(typSchluessel);
+            // An unknown cTypes filter makes the game return the entire world.
+            if (art == null) return raus;
 
-            using (var doc = Debugger.Frage("listEntities?cTypes=" + Debugger.Verpacke(typSchluessel)))
+            using (var doc = Debugger.Frage("listEntities?cTypes=" + Debugger.Verpacke(art.Schluessel)))
             {
                 if (doc == null) return raus;
 
@@ -167,11 +198,11 @@ namespace Floppy.Unrailed2
 
                         foreach (var komp in komps.EnumerateArray())
                         {
-                            string kschl = Text(komp, "id") ?? Text(komp, "name") ?? typSchluessel;
+                            string kschl = Text(komp, "id");
 
                             // listEntities liefert die ganze Entitaet, also auch ihre
                             // uebrigen Komponenten. Uns interessiert nur die gefragte.
-                            if (kschl != typSchluessel) continue;
+                            if (kschl != art.Schluessel) continue;
 
                             if (!komp.TryGetProperty("fields", out var felder)) continue;
                             if (felder.ValueKind != JsonValueKind.Array) continue;
@@ -184,7 +215,8 @@ namespace Floppy.Unrailed2
                                 raus.Add(new Feld
                                 {
                                     Entitaet = eid,
-                                    TypSchluessel = typSchluessel,
+                                    TypSchluessel = art.Schluessel,
+                                    TypNameHash = art.NameHash,
                                     Schluessel = fschl,
                                     Wert = Rohwert(f)
                                 });
@@ -209,55 +241,40 @@ namespace Floppy.Unrailed2
 
         // ---------------------------------------------------------------- Schreiben
 
-        /// <summary>Schreibt ein Feld - und prueft nach, ob es angekommen ist.
-        ///
-        /// Der Server antwortet auf changeValue auch dann mit 200, wenn er den Befehl
-        /// gar nicht verwerten konnte; die Fehlermeldungen ("Component not found or not
-        /// registered", "Field '{0}.{1}' not found") landen im Spielprotokoll, nicht in
-        /// der Antwort. Ein blindes "hat geklappt" waere hier also gelogen. Deshalb
-        /// lesen wir den Wert danach zurueck und vergleichen.
-        ///
-        /// Der Rueckvergleich hat einen zweiten Zweck: Er sagt uns, welche Schreibweise
-        /// das Spiel ueberhaupt annimmt. Die Weboberflaeche des Spiels baut den Befehl
-        /// aus Werten, die sie selbst vom Server bekommen hat - ob darin Zahlen oder
-        /// Namen stehen, haengt an der Fassung. Wir probieren die Zahlenform zuerst,
-        /// merken uns bei Misserfolg die Namensform und nehmen ab dann die, die geht.</summary>
+        /// <summary>Writes the exact type hash used by the game's own web UI and verifies this entity.</summary>
         public static bool Setze(long entitaet, string typSchluessel, string feldSchluessel, string wertAlsJson)
         {
-            if (entitaet < 0) return false;
-
-            // Steht die Schreibweise fest, wird nur noch geschrieben. Die Rueckprobe
-            // kostet eine zweite Anfrage, und die beantwortet das Spiel in seinem
-            // Bildtakt - bei einem Bereich mit zweihundert Entitaeten waere das
-            // zweihundertmal Lesen der gesamten Liste. Das merkt der Spielende sofort.
-            // Ob es angekommen ist, prueft die Oberflaeche stattdessen einmal am Ende.
-            if (_formGeklaert)
-            {
-                Schicke(entitaet, typSchluessel, feldSchluessel, wertAlsJson, _namensform);
-                return true;
-            }
-
-            if (Versuche(entitaet, typSchluessel, feldSchluessel, wertAlsJson, _namensform))
-            {
-                _formGeklaert = true;
-                return true;
-            }
-
-            bool andere = !_namensform;
-
-            if (Versuche(entitaet, typSchluessel, feldSchluessel, wertAlsJson, andere))
-            {
-                _namensform = andere;
-                _formGeklaert = true;
-
-                Floppy.Core.Log.Info("Unrailed2: Schreibweise geklärt - " +
-                                     (andere ? "Namen" : "Zahlen"));
-                return true;
-            }
-
-            return false;
+            var art = FindeArt(typSchluessel);
+            if (!Schreibe(art, entitaet, feldSchluessel, wertAlsJson)) return false;
+            var field = Felder(art.Schluessel).FirstOrDefault(f => f.Entitaet == entitaet && f.Schluessel == feldSchluessel);
+            return field != null && Gleich(field.Wert, wertAlsJson);
         }
 
+        private static bool Schreibe(Komponentenart art, long entitaet, string feld, string wertAlsJson)
+        {
+            if (art == null || string.IsNullOrEmpty(art.NameHash) || entitaet < 0 || string.IsNullOrEmpty(feld))
+                return false;
+            string command = entitaet + "." + art.NameHash + "." + feld + "=" + wertAlsJson;
+            return Debugger.Loese("changeValue?command=" + Debugger.Verpacke(command));
+        }
+
+        /// <summary>Ein Feld bei mehreren Entitaeten setzen und gemeinsam zuruecklesen.</summary>
+        public static int SetzeZahlMehrere(IEnumerable<long> entitaeten, string typ, string feld, double wert)
+        {
+            var art = FindeArt(typ);
+            if (art == null) return 0;
+            string json = wert.ToString("R", CultureInfo.InvariantCulture);
+            var gesendet = new HashSet<long>();
+            foreach (long eid in entitaeten.Distinct())
+            {
+                if (!Schreibe(art, eid, feld, json)) break;
+                gesendet.Add(eid);
+            }
+            if (gesendet.Count == 0) return 0;
+            return Felder(art.Schluessel)
+                .Where(f => gesendet.Contains(f.Entitaet) && f.Schluessel == feld && Gleich(f.Wert, json))
+                .Select(f => f.Entitaet).Distinct().Count();
+        }
         /// <summary>Liest ein Feld zurueck und sagt, ob dort der erwartete Wert steht.
         /// Damit prueft die Oberflaeche einen ganzen Schwung Schreibvorgaenge mit einer
         /// einzigen Anfrage nach, statt mit einer je Entitaet.</summary>
@@ -266,26 +283,6 @@ namespace Floppy.Unrailed2
             return Felder(typSchluessel)
                    .Where(f => f.Schluessel == feldSchluessel)
                    .Count(f => Gleich(f.Wert, erwartet));
-        }
-
-        private static bool _namensform;
-        private static bool _formGeklaert;
-
-        private static void Schicke(long eid, string typ, string feld, string wert, bool namensform)
-        {
-            string t = namensform ? Namen.Typ(typ) : typ;
-            string f = namensform ? Namen.Feld(typ, feld) : feld;
-
-            Debugger.Loese("changeValue?command=" +
-                           Debugger.Verpacke(eid + "." + t + "." + f + "=" + wert));
-        }
-
-        private static bool Versuche(long eid, string typ, string feld, string wert, bool namensform)
-        {
-            Schicke(eid, typ, feld, wert, namensform);
-
-            string jetzt = Lies(typ, feld);
-            return jetzt != null && Gleich(jetzt, wert);
         }
 
         /// <summary>Vergleicht zwei Werte grosszuegig: Das Spiel gibt eine gesetzte 10
