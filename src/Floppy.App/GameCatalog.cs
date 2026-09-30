@@ -39,7 +39,8 @@ public static class GameCatalog
         new() { Name = "Project P.I.T.T.", AppId = "4026250", ProductName = "Project P.I.T.T." },
         new() { Name = "Stonewards",  AppId = "4502710", ProductName = "Stonewards" },
         new() { Name = "Mortal Shell II", AppId = "2584270", ProductName = "MortalShell2" },
-        new() { Name = "Unrailed! 2", AppId = "2211170", ProductName = "Unrailed2" }
+        new() { Name = "Unrailed! 2", AppId = "2211170", ProductName = "Unrailed2" },
+        new() { Name = "Minecraft Dungeons II", AppId = "1912410", ProductName = "MinecraftDungeons2" }
     };
 
     public static string CatalogPath =>

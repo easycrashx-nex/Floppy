@@ -15,6 +15,7 @@ namespace Floppy.Unreal
         private readonly ulong _namePool;
 
         private readonly Speicher _s;
+        private readonly int _propertyOffset;
 
         // Diese Abstände unterscheiden sich je nach Engine-Fassung. Sie werden beim
         // Verbinden gemessen, nicht aus einer Tabelle genommen - siehe Kalibriere().
@@ -26,9 +27,12 @@ namespace Floppy.Unreal
         private readonly Dictionary<uint, string> _namen = new();
         private readonly Dictionary<ulong, List<Eigenschaft>> _felder = new();
 
-        public Reflexion(Speicher s, ulong guObjectArrayRva, ulong namePoolRva)
+        public Reflexion(Speicher s, ulong guObjectArrayRva, ulong namePoolRva, int propertyOffset = 0x44)
         {
+            if (propertyOffset != 0x44 && propertyOffset != 0x48)
+                throw new ArgumentOutOfRangeException(nameof(propertyOffset));
             _s = s;
+            _propertyOffset = propertyOffset;
             _guObjectArray = s.Basis + guObjectArrayRva;
             _namePool = s.Basis + namePoolRva;
         }
@@ -185,7 +189,7 @@ namespace Floppy.Unreal
         /// A failed read is not a valid zero offset; function parameters can legitimately start at zero.</summary>
         private int WertAbstand(ulong feld)
         {
-            var bytes = _s.Lies(feld + 0x44, 4);
+            var bytes = _s.Lies(feld + (ulong)_propertyOffset, 4);
             if (bytes == null) return -1;
             int offset = BitConverter.ToInt32(bytes, 0);
             return offset is >= 0 and < 0x8000 ? offset : -1;

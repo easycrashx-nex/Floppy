@@ -1,10 +1,15 @@
-# Floppy 1.5.0
+# Floppy 1.6.0
 
 Floppy ist ein modulares Windows-Modmenü mit Desktop-App und externem Overlay.
 Die Module definieren ihre Optionen einmal; Desktop und Overlay verwenden dieselbe Oberfläche.
 
 **[Aktuelle Downloads](https://github.com/easycrashx-nex/Floppy/releases/latest)** ·
 **[Alle Versionen](https://github.com/easycrashx-nex/Floppy/releases)**
+
+Version 1.6.0 ergänzt einen ersten externen Adapter für **Minecraft Dungeons II**:
+Lebenspunkte anzeigen, Leben auffüllen und Leben halten. Das laufende Spiel braucht
+dafür keinen Neustart. Der Prototyp ist auf Steam-Build 25041023 begrenzt.
+Details und Testumfang: [Änderungen 1.6.0](docs/Aenderungen-1.6.0.md).
 
 Version 1.5.0 ergänzt einen eigenen **Einstellungsbereich** für Floppy. Dort lassen sich
 Verbindungsautomatik, minimierter Start, Fensterspeicherung, Overlay-Taste und die
@@ -57,6 +62,7 @@ ist keine Installation oder Reparatur im Spielordner nötig.
 | Project P.I.T.T. | Godot 4, PCK-Format 4 | App ergänzt das Backend-Skript und sichert das vorherige Paket |
 | Mortal Shell II | Externer Unreal-Adapter | Dienst in der Desktop-App |
 | Unrailed! 2 | Entwicklerschnittstelle | Dienst in der Desktop-App |
+| Minecraft Dungeons II | Externer Unreal-Adapter, Prototyp | Dienst in der Desktop-App; Steam-Build 25041023 |
 
 Die Unterstützung einzelner Funktionen hängt von der jeweiligen Spielversion und dem Spielzustand ab.
 Ein erfolgreicher Build bestätigt keine Funktion im laufenden Spiel.
@@ -66,7 +72,7 @@ Ein erfolgreicher Build bestätigt keine Funktion im laufenden Spiel.
 Floppy benötigt **Windows x64**. Für die vollständigen Release-Ausgaben ist keine
 separate .NET-Installation erforderlich. Zwei Varianten stehen zur Verfügung:
 
-- **Einzelne Portable-EXE:** `Floppy-1.5.0-Portable.exe` speichern und starten. Diese eine
+- **Einzelne Portable-EXE:** `Floppy-1.6.0-Portable.exe` speichern und starten. Diese eine
   Datei kann allein weitergegeben werden. Sie enthält die .NET-Laufzeit, alle mitgelieferten
   Loader, Module und Bilder. Beim ersten Start entpackt sie ihre Dateien automatisch in
   einen eigenen Bundlecache; der erste Start kann deshalb etwas länger dauern.
@@ -188,11 +194,11 @@ dotnet build src/Floppy.App/Floppy.App.csproj -c Release
 dotnet build src/Floppy.App/Floppy.App.csproj -c Release -p:BuildGameModules=false
 
 # Vollständiges eigenständiges Windows-Paket für die ZIP-Weitergabe:
-dotnet publish src/Floppy.App/Floppy.App.csproj -c Release -r win-x64 --self-contained true -o artifacts/Floppy-1.5.0-win-x64
+dotnet publish src/Floppy.App/Floppy.App.csproj -c Release -r win-x64 --self-contained true -o artifacts/Floppy-1.6.0-win-x64
 
 # Einzelne EXE mit eingebetteter Laufzeit und sämtlichen Installationsdateien:
-dotnet publish src/Floppy.App/Floppy.App.csproj -c Release -p:PublishProfile=Portable -o artifacts/Floppy-1.5.0-portable
-Copy-Item -LiteralPath .\artifacts\Floppy-1.5.0-portable\Floppy.exe -Destination .\artifacts\Floppy-1.5.0-Portable.exe
+dotnet publish src/Floppy.App/Floppy.App.csproj -c Release -p:PublishProfile=Portable -o artifacts/Floppy-1.6.0-portable
+Copy-Item -LiteralPath .\artifacts\Floppy-1.6.0-portable\Floppy.exe -Destination .\artifacts\Floppy-1.6.0-Portable.exe
 
 # Bauen und How to Fish einrichten – Build erfolgt vor jeder Spieländerung:
 .\deploy.ps1 -GameDir "D:\SteamLibrary\steamapps\common\How to Fish\How to Fish" -App
@@ -230,13 +236,13 @@ dotnet run --project tests/Floppy.Install.Tests -c Release
 python -m unittest discover -s tools -p "test_rauchtest.py"
 
 # Zusätzlich das tatsächliche Publish-Paket auf Vollständigkeit prüfen:
-dotnet run --project tests/Floppy.Install.Tests -c Release -- artifacts/Floppy-1.5.0-win-x64
+dotnet run --project tests/Floppy.Install.Tests -c Release -- artifacts/Floppy-1.6.0-win-x64
 
 # Die ausgelieferte EXE selbst prüfen (ohne Spielzugriff oder sichtbares Fenster):
-.\artifacts\Floppy-1.5.0-win-x64\Floppy.exe --self-test "$env:TEMP\floppy-self-test.txt"
+.\artifacts\Floppy-1.6.0-win-x64\Floppy.exe --self-test "$env:TEMP\floppy-self-test.txt"
 
 # Nur die Portable-EXE in einen isolierten Ordner kopieren und prüfen:
-.\tools\test-portable.ps1 -Exe .\artifacts\Floppy-1.5.0-Portable.exe
+.\tools\test-portable.ps1 -Exe .\artifacts\Floppy-1.6.0-Portable.exe
 
 # P.I.T.T.-Backend zusätzlich mit einer vorhandenen Godot-4-Konsole prüfen:
 .\tools\test-pitt.ps1 -Godot "C:\Pfad\Godot_console.exe"

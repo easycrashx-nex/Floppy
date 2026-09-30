@@ -49,7 +49,7 @@ public partial class MainWindow
     private GridLength _libraryWidthVorher;
     private Transform _layoutVorher = Transform.Identity;
 
-    private bool HasExternalHost => _connectedGameId is "MortalShell2" or "Unrailed2";
+    private bool HasExternalHost => _connectedGameId is "MortalShell2" or "Unrailed2" or "MinecraftDungeons2";
     private bool OverlaySupported => _remoteOverlay || HasExternalHost;
 
     private void OverlayVorbereiten()
@@ -81,6 +81,7 @@ public partial class MainWindow
         {
             "MortalShell2" => Floppy.Unreal.Spiel.Prozess,
             "Unrailed2" => Floppy.Unrailed2.Host.Prozessname,
+            "MinecraftDungeons2" => Floppy.Dungeons2.DungeonsModule.ProcessName,
             _ => null
         };
         var game = _games.FirstOrDefault(g => g.ProductName == _connectedGameId);

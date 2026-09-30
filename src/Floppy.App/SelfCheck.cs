@@ -25,6 +25,13 @@ internal static class SelfCheck
                 "Neustart verweist auf die gestartete EXE");
             Check(NumberInput.TryParse("1,5", out double number) && number == 1.5, "Dezimalkomma");
             Check(!NumberInput.TryParse("Infinity", out _), "Ungültige Zahl abgewiesen");
+            using (var dungeons = new Floppy.Dungeons2.DungeonsModule())
+            {
+                var options = dungeons.BuildCategories().SelectMany(c => c.Options).ToArray();
+                Check(options.Any(o => o.Id == "health.heal") && options.Any(o => o.Id == "health.keep") &&
+                    options.Where(o => o.Kind != Floppy.Core.Api.OptionKind.Info).All(o => !o.Available),
+                    "Dungeons-II-Adapter vorhanden; ohne Spielzugriff zunächst gesperrt");
+            }
             var window = new MainWindow(offline: true);
             Check(new System.Windows.Interop.WindowInteropHelper(window).EnsureHandle() != IntPtr.Zero,
                 "Windows-Fensterinitialisierung ohne Anzeige");

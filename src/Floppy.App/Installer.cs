@@ -52,7 +52,7 @@ public static class Installer
                 "Stonewards" => new(name, "mono", "Floppy.Stonewards.dll"),
                 "ODDCORE" => new(name, "il2cpp", "Floppy.Oddcore.dll"),
                 "Project P.I.T.T." => new(name, "pitt", null),
-                "MortalShell2" or "Unrailed2" => new(name, "external", null),
+                "MortalShell2" or "Unrailed2" or "MinecraftDungeons2" => new(name, "external", null),
                 _ => throw new InvalidOperationException("Für dieses Spiel ist keine Installation definiert.")
             };
         if (name == "How to Fish" || Directory.Exists(Path.Combine(directory, "How to Fish_Data")))
@@ -63,7 +63,8 @@ public static class Installer
             return new("ODDCORE", "il2cpp", "Floppy.Oddcore.dll");
         if (name == "Project P.I.T.T." || File.Exists(Path.Combine(directory, "projectpitt.pck")))
             return new("Project P.I.T.T.", "pitt", null);
-        if (name is "MortalShell2" or "Unrailed2") return new(name, "external", null);
+        if (name is "MortalShell2" or "Unrailed2" or "MinecraftDungeons2") return new(name, "external", null);
+        if (File.Exists(Path.Combine(directory, "Dungeons-Win64-Shipping.exe"))) return new("MinecraftDungeons2", "external", null);
         if (File.Exists(Path.Combine(directory, "Unrailed2.exe"))) return new("Unrailed2", "external", null);
         if (Directory.EnumerateFiles(directory, "*MortalShell*.exe", SearchOption.TopDirectoryOnly).Any())
             return new("MortalShell2", "external", null);

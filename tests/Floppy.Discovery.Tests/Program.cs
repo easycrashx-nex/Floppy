@@ -12,7 +12,8 @@ internal static class Program
         ("2896260", "ODDCORE.exe", "ODDCORE_Data"),
         ("4026250", "projectpitt.exe", "projectpitt.pck"),
         ("2584270", "MortalShell2-Win64-Shipping.exe", null),
-        ("2211170", "Unrailed2.exe", null)
+        ("2211170", "Unrailed2.exe", null),
+        ("1912410", "Dungeons-Win64-Shipping.exe", null)
     };
     private static int _checks;
 

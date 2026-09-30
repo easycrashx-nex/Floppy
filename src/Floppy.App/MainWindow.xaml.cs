@@ -271,12 +271,19 @@ public partial class MainWindow : Window
     {
         bool mortalShell = Process.GetProcessesByName(Floppy.Unreal.Spiel.Prozess).Length > 0;
         bool unrailed = Process.GetProcessesByName(Floppy.Unrailed2.Host.Prozessname).Length > 0;
+        bool dungeons = Process.GetProcessesByName(Floppy.Dungeons2.DungeonsModule.ProcessName).Length > 0;
 
         // Unrailed 2 ist der eine Fall, in dem das Modul auch ohne laufendes Spiel
         // gebraucht wird: Der Schalter, der den Entwicklerzugang anschaltet, lässt sich
         // nur bei geschlossenem Spiel setzen - beim Beenden schreibt es die
         // Einstellungsdatei sonst wieder über unsere Zeilen.
         bool unrailedGewaehlt = _selectedGame?.ProductName == "Unrailed2";
+
+        if (Floppy.Dungeons2.Host.Laeuft)
+        {
+            if (!dungeons) Floppy.Dungeons2.Host.Stoppe();
+            return;
+        }
 
         if (Floppy.Unreal.Host.Laeuft)
         {
@@ -294,7 +301,9 @@ public partial class MainWindow : Window
 
         // Beide teilen sich denselben Port, es kann also nur einer laufen. Ein
         // tatsächlich laufendes Spiel hat Vorrang vor einem bloß ausgewählten.
+        if (dungeons && _selectedGame?.ProductName == "MinecraftDungeons2") { Floppy.Dungeons2.Host.Starte(out _); return; }
         if (mortalShell) { Floppy.Unreal.Host.Starte(out _); return; }
+        if (dungeons) { Floppy.Dungeons2.Host.Starte(out _); return; }
         if (unrailed || unrailedGewaehlt) Floppy.Unrailed2.Host.Starte(out _);
     }
 

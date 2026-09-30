@@ -117,6 +117,7 @@ public static class SteamLibrary
             "4026250" => ("projectpitt.exe", "projectpitt.pck"),
             "2584270" => ("MortalShell2-Win64-Shipping.exe", null),
             "2211170" => ("Unrailed2.exe", null),
+            "1912410" => ("Dungeons-Win64-Shipping.exe", null),
             _ => (null, null)
         };
         if (exe == null)

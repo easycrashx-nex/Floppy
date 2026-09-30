@@ -128,7 +128,7 @@ public partial class MainWindow
     {
         while (true)
         {
-            var stopped = await Task.WhenAll(Floppy.Unreal.Host.StoppeAsync(), Floppy.Unrailed2.Host.StoppeAsync());
+            var stopped = await Task.WhenAll(Floppy.Unreal.Host.StoppeAsync(), Floppy.Unrailed2.Host.StoppeAsync(), Floppy.Dungeons2.Host.StoppeAsync());
             if (stopped.All(value => value)) return;
             SetStatus("Warte auf den Abschluss des laufenden Spielbefehls…", false, transient: true);
         }
