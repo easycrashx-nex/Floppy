@@ -8,7 +8,7 @@ using Floppy.Unreal;
 using Host = Floppy.Dungeons2.Host;
 
 Console.OutputEncoding = new UTF8Encoding(false);
-if (args.Contains("--probe-host"))
+if (args.Contains("--probe-host") || args.Contains("--probe-online"))
 {
     if (!Host.Starte(out string message)) { Console.Error.WriteLine(message); return 1; }
     try
@@ -27,8 +27,13 @@ if (args.Contains("--probe-host"))
         var info = new[] { "progress.level", "progress.xp.current", "progress.xp.next", "currency.emeralds", "ammo.loaded" }
             .ToDictionary(id => id, id => values.GetProperty(id).GetProperty("text").GetString());
         bool ready = root.GetProperty("ready").GetBoolean();
-        Console.WriteLine(JsonSerializer.Serialize(new { ready, game = root.GetProperty("game").GetString(), info }));
-        return ready && info.Values.All(text => !string.IsNullOrEmpty(text) && text != "–") ? 0 : 1;
+        string mode = values.GetProperty("connection.mode").GetProperty("text").GetString()!;
+        var mutations = FeatureCatalog.All.Select(f => f.Id).Concat(new[] { "health.heal", "health.keep", "emerald.give", "springstone.give" })
+            .Concat(FeatureCatalog.Resources.SelectMany(r => new[] { r.Id + ".refill", r.Id + ".keep" })).ToArray();
+        int enabledMutations = mutations.Count(id => values.GetProperty(id).GetProperty("available").GetBoolean());
+        Console.WriteLine(JsonSerializer.Serialize(new { ready, game = root.GetProperty("game").GetString(), mode, enabledMutations, info }));
+        return ready && info.Values.All(text => !string.IsNullOrEmpty(text) && text != "–") &&
+            (!args.Contains("--probe-online") || enabledMutations == 0 && mode.StartsWith("Server-Spiel")) ? 0 : 1;
     }
     finally { while (!await Host.StoppeAsync()) { } }
 }
@@ -201,6 +206,25 @@ fixture.U64(fixture.Controller + 0x58, 0);
 Check(!session.RestoreAll(out _) && fixture.Float(fixture.Movement + 0x90) == 1600, "pending restore is reported while ownership chain unavailable");
 fixture.U64(fixture.Controller + 0x58, fixture.Pawn);
 Check(session.RestoreAll(out _) && fixture.Float(fixture.Movement + 0x90) == 800, "pending restore succeeds after ownership recovers");
+fixture.I32(fixture.Pawn + 0x78, 2);
+Check(session.Refresh() && !session.CanModify && !session.HasAuthority && session.Status.Contains("Server"), "online proxy remains connected for read-only information");
+Check(!session.Heal(out _) && fixture.Float(fixture.Health + 0x9c) == 25, "online heal rejected before write");
+Check(!session.ApplyFeature(speed, 2, out _) && fixture.Float(fixture.Movement + 0x90) == 800, "online movement changes rejected");
+Check(!session.CanGrant(emeralds, emeraldMax) && !session.Grant(emeralds, emeraldMax, 1, out _) &&
+    fixture.Float(fixture.Currency + 0x9c) == 35, "online currency grant unavailable and unchanged");
+Check(session.ResourceAvailable(souls) && !session.Refill(souls, out _) && fixture.Float(fixture.Soul + 0x9c) == 10,
+    "online resource information remains readable; refill rejected");
+foreach (int role in new[] { 0, 1, 4, 255 })
+{
+    fixture.I32(fixture.Pawn + 0x78, role);
+    Check(session.Refresh() && !session.CanModify && !session.Heal(out _), "unknown or non-authoritative role cannot write: " + role);
+}
+fixture.I32(fixture.Pawn + 0x78, 3);
+Check(session.Refresh() && session.CanModify, "authority recovery reenables local operations");
+fixture.I32(fixture.Pawn + 0x78, 2);
+Check(!session.ApplyFeature(speed, 2, out _, refresh: false) && fixture.Float(fixture.Movement + 0x90) == 800,
+    "role loss between refresh and write is guarded");
+fixture.I32(fixture.Pawn + 0x78, 3);
 using (var module = new DungeonsModule())
 {
     var categories = module.BuildCategories();
@@ -238,7 +262,8 @@ sealed class Fixture : IDisposable
         var local = Object(0, "Local", Class("DungeonsLocalPlayer", ("PlayerController", "ObjectProperty", 0x40)));
         Controller = Object(1, "PC", Class("PlayerController", ("Pawn", "ObjectProperty", 0x50), ("AcknowledgedPawn", "ObjectProperty", 0x58)));
         Pawn = Object(2, "Player", Class("PlayerCharacter", ("Controller", "ObjectProperty", 0x60),
-            ("AbilitySystemComponent", "ObjectProperty", 0x68), ("CharacterMovement", "ObjectProperty", 0x70)));
+            ("AbilitySystemComponent", "ObjectProperty", 0x68), ("CharacterMovement", "ObjectProperty", 0x70), ("Role", "ByteProperty", 0x78)));
+        I32(Pawn + 0x78, 3);
         Ability = Object(3, "Ability", Class("SWAbilitySystemComponent", ("OwnerActor", "ObjectProperty", 0x60),
             ("AvatarActor", "ObjectProperty", 0x68), ("SpawnedAttributes", "ArrayProperty", 0x80)));
         var healthClass = Class("ATR_Health", ("Health", "StructProperty", 0x90), ("HealthMax", "StructProperty", 0xb0));
@@ -310,6 +335,7 @@ sealed class Fixture : IDisposable
         I32(Objects + 36, 10);
         U64(Controller + 0x50, replacement); U64(Controller + 0x58, replacement);
         U64(replacement + 0x60, Controller); U64(replacement + 0x68, Ability);
+        I32(replacement + 0x78, 3);
         U64(Ability + 0x60, replacement); U64(Ability + 0x68, replacement);
         U64(Enemy + 32, replacement); U64(Attributes, Enemy);
     }

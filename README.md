@@ -1,10 +1,15 @@
-# Floppy 1.7.1
+# Floppy 1.7.2
 
 Floppy ist ein modulares Windows-Modmenü mit Desktop-App und externem Overlay.
 Die Module definieren ihre Optionen einmal; Desktop und Overlay verwenden dieselbe Oberfläche.
 
 **[Aktuelle Downloads](https://github.com/easycrashx-nex/Floppy/releases/latest)** ·
 **[Alle Versionen](https://github.com/easycrashx-nex/Floppy/releases)**
+
+Version 1.7.2 erkennt serververwaltete Minecraft-Dungeons-II-Figuren. In diesen
+Sitzungen bleiben Anzeigen verfügbar; lokale Spieländerungen werden als nicht
+unterstützt erklärt und gesperrt. Eine eigene Lobby ist nicht automatisch ein
+lokal verwaltetes Spiel. [Änderungen 1.7.2](docs/Aenderungen-1.7.2.md).
 
 Version 1.7.1 korrigiert die laufende Anzeige von Smaragden, Level, Erfahrung und
 geladener Munition: [Änderungen 1.7.1](docs/Aenderungen-1.7.1.md).
@@ -81,7 +86,7 @@ Ein erfolgreicher Build bestätigt keine Funktion im laufenden Spiel.
 Floppy benötigt **Windows x64**. Für die vollständigen Release-Ausgaben ist keine
 separate .NET-Installation erforderlich. Zwei Varianten stehen zur Verfügung:
 
-- **Einzelne Portable-EXE:** `Floppy-1.7.1-Portable.exe` speichern und starten. Diese eine
+- **Einzelne Portable-EXE:** `Floppy-1.7.2-Portable.exe` speichern und starten. Diese eine
   Datei kann allein weitergegeben werden. Sie enthält die .NET-Laufzeit, alle mitgelieferten
   Loader, Module und Bilder. Beim ersten Start entpackt sie ihre Dateien automatisch in
   einen eigenen Bundlecache; der erste Start kann deshalb etwas länger dauern.

@@ -27,6 +27,11 @@ internal sealed class Session
     internal float Health { get; private set; }
     internal float Maximum { get; private set; }
     internal bool Ready { get; private set; }
+    internal bool HasAuthority { get; private set; }
+    private int _role = -1;
+    internal bool CanModify => Ready && HasAuthority;
+    internal string Mode => HasAuthority ? "Spielwerte lokal verwaltet" : _role is 1 or 2
+        ? "Server-Spiel · nur Anzeigen unterstützt" : "Spielrolle unbekannt · nur Anzeigen unterstützt";
     internal string Status { get; private set; } = "Suche lokale Spielfigur…";
 
     internal Session(Speicher memory, ulong objectsRva, ulong namesRva)
@@ -63,9 +68,16 @@ internal sealed class Session
         return bytes == null ? 0 : BitConverter.ToUInt64(bytes, 0);
     }
 
+    private int Role(ulong pawn)
+    {
+        if (!_reflection.Finde(pawn, "Role", out var role) || role.Typ != "ByteProperty" || role.Abstand < 40) return -1;
+        var bytes = _memory.Lies(pawn + (ulong)role.Abstand, 1);
+        return bytes != null && bytes[0] <= 3 ? bytes[0] : -1;
+    }
+
     internal bool Refresh()
     {
-        Ready = false; _owned = false; Pawn = 0; _values.Clear();
+        Ready = false; HasAuthority = false; _role = -1; _owned = false; Pawn = 0; _values.Clear();
         Health = 0; Maximum = 0;
         Status = "Lade einen Spielstand mit aktiver Spielfigur.";
         if (!_memory.Lebt() || _reflection.Name(0) != "None") return false;
@@ -105,8 +117,12 @@ internal sealed class Session
         if (Live(movement) && _reflection.Besitzer(movement) == pawn) ReadFields(pawn, movement, "Movement", false);
         if (!_values.TryGetValue("ATR_Health.Health", out var health) || !_values.TryGetValue("ATR_Health.HealthMax", out var maximum)) return false;
         Pawn = pawn; Health = health.Current; Maximum = maximum.Current; _owned = true;
+        _role = Role(pawn); HasAuthority = _role == 3; // ROLE_Authority
         Ready = ValidHealth(Health, Maximum);
-        Status = Ready ? "Lokale Spielfigur verbunden" : Health == 0 ? "Spielfigur besiegt – warte auf Wiederbelebung." : "Lebenswerte momentan nicht gültig.";
+        Status = Ready ? HasAuthority ? "Lokale Spielfigur verbunden" : _role is 1 or 2
+            ? "Server verwaltet die Spielfigur · Anzeigen verfügbar, Spieländerungen nicht unterstützt."
+            : "Spielrolle nicht eindeutig · Anzeigen verfügbar, Spieländerungen gesperrt."
+            : Health == 0 ? "Spielfigur besiegt – warte auf Wiederbelebung." : "Lebenswerte momentan nicht gültig.";
         return Ready;
     }
 
@@ -134,7 +150,7 @@ internal sealed class Session
     private bool Write(Value value, float number, out bool written)
     {
         written = false;
-        if (!_owned || !Same(value) || value.Pawn != Pawn || !float.IsFinite(number)) return false;
+        if (!_owned || !HasAuthority || Role(Pawn) != 3 || !Same(value) || value.Pawn != Pawn || !float.IsFinite(number)) return false;
         if (!_memory.Schreibe(value.Address, BitConverter.GetBytes(number))) return false;
         written = true;
         var result = _memory.Lies(value.Address, 4);
@@ -147,6 +163,7 @@ internal sealed class Session
         if (!float.IsFinite(setting) || setting < feature.Min || setting > feature.Max)
         { message = "Wert außerhalb des erlaubten Bereichs."; return false; }
         if (setting == feature.Neutral) return Restore(feature.Target, out message);
+        if (!CanModify) { message = Status; return false; }
         if (!Ready || !_values.TryGetValue(feature.Target, out var value))
         { message = "Dieser Spielwert ist momentan nicht verfügbar."; return false; }
         Value original = value;
@@ -203,6 +220,7 @@ internal sealed class Session
     internal bool Refill(FeatureCatalog.Resource resource, out string message, bool refresh = true)
     {
         if (refresh) Refresh();
+        if (!CanModify) { message = Status; return false; }
         if (!ResourceAvailable(resource)) { message = "Ressource momentan nicht verfügbar."; return false; }
         var current = _values[resource.Current];
         float maximum = _values[resource.Maximum].Current;
@@ -212,19 +230,20 @@ internal sealed class Session
         return true;
     }
 
-    internal bool CanGrant(string target, string maximum) => Ready && _values.TryGetValue(target, out var value) &&
+    internal bool CanGrant(string target, string maximum) => CanModify && _values.TryGetValue(target, out var value) &&
         _values.TryGetValue(maximum, out var max) && value.Attribute && value.Base == value.Current &&
         value.Current >= 0 && value.Current == MathF.Floor(value.Current) && max.Current > 0 && max.Current <= 100_000 && value.Current <= max.Current;
 
     internal bool Grant(string target, string maximum, float amount, out string message)
     {
         Refresh();
+        if (!CanModify) { message = Status; return false; }
         if (!CanGrant(target, maximum)) { message = "Währungsbestand momentan nicht eindeutig verfügbar."; return false; }
         var value = _values[target];
         float next = value.Current + amount, limit = _values[maximum].Current;
         if (!float.IsFinite(amount) || amount < 1 || amount != MathF.Floor(amount) || !float.IsFinite(next) || next > limit)
         { message = $"Ganze Menge zwischen 1 und {MathF.Floor(limit - value.Current):0} erforderlich."; return false; }
-        if (!Same(value)) { message = "Spielobjekt hat sich geändert."; return false; }
+        if (!Same(value) || Role(Pawn) != 3) { message = "Spielobjekt oder Spielrolle hat sich geändert."; return false; }
         // A one-time currency grant changes the permanent count, not a temporary
         // multiplier. Base and current are adjacent and written in one operation.
         var bytes = new byte[8];
@@ -241,7 +260,7 @@ internal sealed class Session
 
     internal bool Heal(out string message)
     {
-        if (!Refresh()) { message = Status; return false; }
+        if (!Refresh() || !CanModify) { message = Status; return false; }
         if (!Write(_values["ATR_Health.Health"], Maximum)) { message = "Lebenspunkte konnten nicht geschrieben werden."; return false; }
         if (!Refresh() || Math.Abs(Health - Maximum) > Math.Max(.01f, Maximum * .001f))
         { message = "Das Spiel hat die Änderung nicht bestätigt."; return false; }

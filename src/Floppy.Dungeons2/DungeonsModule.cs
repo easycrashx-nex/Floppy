@@ -31,13 +31,13 @@ public sealed class DungeonsModule : IGameModule, IDisposable
 
     public List<CheatCategory> BuildCategories()
     {
-        _keep.IsAvailable = () => _session?.Ready == true;
+        _keep.IsAvailable = () => _session?.CanModify == true;
         _keep.OnChanged = option =>
         {
             if (option.BoolValue && !Heal(out string message)) { option.BoolValue = false; option.Fail(message); }
         };
         var heal = new CheatOption { Id = "health.heal", Label = "Leben auffüllen", Kind = OptionKind.Button,
-            Description = "Füllt ausschließlich die Lebenspunkte deiner lokalen Spielfigur auf.", IsAvailable = () => _session?.Ready == true };
+            Description = "Füllt die Lebenspunkte, sofern das Spiel sie lokal verwaltet. In einer Server-Sitzung nicht unterstützt.", IsAvailable = () => _session?.CanModify == true };
         heal.OnInvoke = option => { if (Heal(out string message)) option.Message = message; else option.Fail(message); };
         var categories = new List<CheatCategory>
         {
@@ -45,6 +45,10 @@ public sealed class DungeonsModule : IGameModule, IDisposable
                 TextValue = "Steam-Build 25041023", Description = "Andere Spielversionen werden erst nach Prüfung freigeschaltet." }),
             new CheatCategory("Überleben").Add(_health).Add(heal).Add(_keep)
         };
+        var mode = new CheatOption { Id = "connection.mode", Label = "Unterstützung in dieser Sitzung", Kind = OptionKind.Info,
+            Description = "Eine eigene Lobby kann trotzdem von einem externen Server verwaltet werden. Der Adapter unterstützt dort Anzeigen, keine Änderung der serververwalteten Spielwerte." };
+        _info[mode.Id] = (mode, "", 1);
+        categories[0].Add(mode);
         CheatCategory Category(string name)
         {
             var category = categories.Find(c => c.Name == name);
@@ -60,7 +64,7 @@ public sealed class DungeonsModule : IGameModule, IDisposable
                     Description = feature.Description.Length != 0 ? feature.Description : "Temporäre Anpassung. Mit dem Normalwert oder „Alles aus“ zurücksetzen." };
                 _features.Add(feature.Id, option);
             }
-            option.IsAvailable = () => _session?.Ready == true && _session.Values.ContainsKey(feature.Target);
+            option.IsAvailable = () => _session?.CanModify == true && _session.Values.ContainsKey(feature.Target);
             option.OnChanged = changed =>
             {
                 if (_session == null) { changed.Fail(_status); return; }
@@ -74,7 +78,7 @@ public sealed class DungeonsModule : IGameModule, IDisposable
             _resourceInfo[resource.Id] = info;
             var refill = new CheatOption { Id = resource.Id + ".refill", Label = resource.Label + " auffüllen", Kind = OptionKind.Button,
                 Description = "Füllt den Ressourcenbestand. Bereits laufende Cooldown-Effekte werden dadurch nicht entfernt.",
-                IsAvailable = () => _session?.ResourceAvailable(resource) == true };
+                IsAvailable = () => _session?.CanModify == true && _session.ResourceAvailable(resource) };
             refill.OnInvoke = changed =>
             {
                 if (_session == null) { changed.Fail(_status); return; }
@@ -83,7 +87,7 @@ public sealed class DungeonsModule : IGameModule, IDisposable
             if (!_resources.TryGetValue(resource.Id, out var keep))
             { keep = new CheatOption { Id = resource.Id + ".keep", Label = resource.Label + " halten", Kind = OptionKind.Toggle,
                 Description = "Füllt die Ressource regelmäßig bis zum aktuellen Maximum auf." }; _resources.Add(resource.Id, keep); }
-            keep.IsAvailable = () => _session?.ResourceAvailable(resource) == true;
+            keep.IsAvailable = () => _session?.CanModify == true && _session.ResourceAvailable(resource);
             keep.OnChanged = changed =>
             {
                 if (!changed.BoolValue) return;
@@ -150,6 +154,13 @@ public sealed class DungeonsModule : IGameModule, IDisposable
         {
             bool ready = _session.Refresh();
             _status = _session.Status;
+            if (!_session.CanModify)
+            {
+                _keep.BoolValue = false;
+                foreach (var option in _resources.Values) option.BoolValue = false;
+                foreach (var feature in FeatureCatalog.All)
+                    if (_features.TryGetValue(feature.Id, out var option)) option.NumberValue = feature.Neutral;
+            }
             foreach (var feature in FeatureCatalog.All)
             {
                 if (!_features.TryGetValue(feature.Id, out var option)) continue;
@@ -171,7 +182,8 @@ public sealed class DungeonsModule : IGameModule, IDisposable
         }
         else _health.TextValue = "–";
         foreach (var row in _info.Values)
-            row.Option.TextValue = _session?.Ready == true && _session.Values.TryGetValue(row.Target, out var value)
+            row.Option.TextValue = row.Target.Length == 0 ? _session?.Ready == true ? _session.Mode : "–"
+                : _session?.Ready == true && _session.Values.TryGetValue(row.Target, out var value)
                 ? $"{value.Current * row.Scale:0.##}" + (row.Scale == 100 ? " %" : "") : "–";
         _state.TextValue = _status;
     }
