@@ -205,6 +205,8 @@ using (var module = new DungeonsModule())
         options.Where(o => o.Kind == Floppy.Core.Api.OptionKind.Slider).All(o => o.Ruhewert == o.NumberValue), "all adjustments start at neutral reset value");
     Check(options.Single(o => o.Id == "emerald.give").Kind == Floppy.Core.Api.OptionKind.Button &&
         !options.Any(o => o.Id == "ammo.refill"), "currency grant exposed; reserve is not misrepresented as loaded-ammo refill");
+    Check(options.Where(o => o.Kind != Floppy.Core.Api.OptionKind.Info && o.Id is not "emerald.amount" and not "springstone.amount")
+        .All(o => !o.Available), "all game mutations unavailable before connection; amount inputs may be edited offline");
 }
 fixture.ReplacePawn();
 Check(session.Refresh() && session.Pawn != fixture.Pawn && session.Health == 17, "respawn resolves replacement pawn and attribute set");

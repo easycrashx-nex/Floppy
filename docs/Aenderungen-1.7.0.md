@@ -39,7 +39,7 @@ Weiterhin unterstützt: Steam-Build **25041023**, EXE-SHA-256
 `7c83afbf0ad34a40b853cdb25a22fffb605d08e2a1e2d431974d7c7c1ee0ba54`.
 Andere EXE-Fassungen bleiben gesperrt, bis ihr Adapter geprüft wurde.
 
-114 Prüfungen im eigenen nativen Testprozess prüfen Besitz, Objektidentität,
+115 Prüfungen im eigenen nativen Testprozess prüfen Besitz, Objektidentität,
 ungültige Werte, Währungsgutschriften, Ressourcen, Bewegungswerte,
 nicht kumulierende Regler, Ausrüstungswechsel und Rücksetzen. Sie greifen
 standardmäßig auf kein Spiel zu.
@@ -56,7 +56,7 @@ verbraucht und erneut aufgefüllt.
 
 Das echte IPC-Schema meldete die aktive Spielfigur und die neuen Funktionen als
 verfügbar. Alle 17 Regression-Suites und drei Python-Fixtures bestanden; die
-abschließende Dungeons-Prüfung enthielt 114 Checks. Windows verweigerte dem
+abschließende Dungeons-Prüfung enthielt 115 Checks. Windows verweigerte dem
 Overlay-Fixture den Vordergrundzugriff, deshalb wurde dessen Fokus-/Hotkey-Teil
 ausgelassen. Der Symboltest ließ die optionalen PDB-Fixtures aus; die gemeinsame
 Symbolauflösung wurde in dieser Version nicht geändert.

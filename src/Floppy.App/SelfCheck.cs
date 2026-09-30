@@ -29,7 +29,8 @@ internal static class SelfCheck
             {
                 var options = dungeons.BuildCategories().SelectMany(c => c.Options).ToArray();
                 Check(options.Any(o => o.Id == "health.heal") && options.Any(o => o.Id == "health.keep") &&
-                    options.Where(o => o.Kind != Floppy.Core.Api.OptionKind.Info).All(o => !o.Available),
+                    options.Where(o => o.Kind != Floppy.Core.Api.OptionKind.Info &&
+                        o.Id is not "emerald.amount" and not "springstone.amount").All(o => !o.Available),
                     "Dungeons-II-Adapter vorhanden; ohne Spielzugriff zunächst gesperrt");
             }
             var window = new MainWindow(offline: true);
