@@ -1,10 +1,16 @@
-# Floppy 1.6.0
+# Floppy 1.7.0
 
 Floppy ist ein modulares Windows-Modmenü mit Desktop-App und externem Overlay.
 Die Module definieren ihre Optionen einmal; Desktop und Overlay verwenden dieselbe Oberfläche.
 
 **[Aktuelle Downloads](https://github.com/easycrashx-nex/Floppy/releases/latest)** ·
 **[Alle Versionen](https://github.com/easycrashx-nex/Floppy/releases)**
+
+Version 1.7.0 erweitert **Minecraft Dungeons II** um Smaragde und Springstone mit
+Mengeneingabe, Ressourcen und 58 Regler für Kampf, Schutz, Bewegung, Artefakte,
+Beute und Erfahrungsausbeute. Temporäre Anpassungen lassen sich auf ihren
+Normalwert zurücksetzen. Details und tatsächlicher Testumfang:
+[Änderungen 1.7.0](docs/Aenderungen-1.7.0.md).
 
 Version 1.6.0 ergänzt einen ersten externen Adapter für **Minecraft Dungeons II**:
 Lebenspunkte anzeigen, Leben auffüllen und Leben halten. Das laufende Spiel braucht
@@ -72,7 +78,7 @@ Ein erfolgreicher Build bestätigt keine Funktion im laufenden Spiel.
 Floppy benötigt **Windows x64**. Für die vollständigen Release-Ausgaben ist keine
 separate .NET-Installation erforderlich. Zwei Varianten stehen zur Verfügung:
 
-- **Einzelne Portable-EXE:** `Floppy-1.6.0-Portable.exe` speichern und starten. Diese eine
+- **Einzelne Portable-EXE:** `Floppy-1.7.0-Portable.exe` speichern und starten. Diese eine
   Datei kann allein weitergegeben werden. Sie enthält die .NET-Laufzeit, alle mitgelieferten
   Loader, Module und Bilder. Beim ersten Start entpackt sie ihre Dateien automatisch in
   einen eigenen Bundlecache; der erste Start kann deshalb etwas länger dauern.
