@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using UnityEngine;
 
 namespace Floppy.Stonewards
@@ -73,9 +74,9 @@ namespace Floppy.Stonewards
             N("wert.sprung",     "Sprunghöhe",            s => s.JumpHeightMultiplier, 0f, 5f, 0.1f),
 
             // --- Geschosse
-            N("wert.geschosse",  "Zusätzliche Geschosse", s => s.ProjectileBonus,  0f, 20f, 1f),
+            N("wert.geschosse",  "Zusätzliche Geschosse", Optional("ProjectileBonus"), 0f, 20f, 1f),
             N("wert.geschosstempo", "Geschosstempo",      s => s.ProjectileSpeed,  0f, 100f, 5f),
-            N("wert.abpraller",  "Abprallende Pfeile",    s => s.BounceArrowCount, 0f, 20f, 1f),
+            N("wert.abpraller",  "Abprallende Pfeile",    Optional("BounceArrowCount"), 0f, 20f, 1f),
 
             // --- Graben und Beute
             N("wert.grabkraft",  "Grabkraft",             s => s.DigStrength,      0f, 100f, 1f,
@@ -89,6 +90,26 @@ namespace Floppy.Stonewards
             N("wert.begleiterschaden", "Begleiter: Schaden", s => s.CompanionDamageMultiplier, 0f, 20f, 0.5f),
             N("wert.begleiterleben",   "Begleiter: Leben",   s => s.CompanionMaxHealth, 0f, 1000f, 10f),
         };
+
+        // These two count stats were removed by newer game builds. A similarly
+        // named chance stat is not an equivalent replacement. Preserve old-build
+        // support and let availability hide missing members instead of failing JIT.
+        private static Func<PlayerStats, CharacterStat> Optional(string name)
+        {
+            const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public;
+            var property = typeof(PlayerStats).GetProperty(name, flags);
+            if (property?.PropertyType == typeof(CharacterStat)) return s => property.GetValue(s) as CharacterStat;
+            var field = typeof(PlayerStats).GetField(name, flags);
+            return field?.FieldType == typeof(CharacterStat) ? s => field.GetValue(s) as CharacterStat : _ => null;
+        }
+
+        internal static bool Verfuegbar(Eintrag eintrag)
+        {
+            var stats = Game.Stats;
+            if (stats == null) return false;
+            try { return eintrag.Hole(stats) != null; }
+            catch (Exception) { return false; }
+        }
 
         private static Eintrag N(string id, string label, Func<PlayerStats, CharacterStat> hole,
                                  float min, float max, float schritt, string beschreibung = "")

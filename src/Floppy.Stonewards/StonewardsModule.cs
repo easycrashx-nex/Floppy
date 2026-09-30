@@ -225,6 +225,7 @@ namespace Floppy.Stonewards
                     Min = eintrag.Min,
                     Max = eintrag.Max,
                     Step = eintrag.Schritt,
+                    IsAvailable = () => Werte.Verfuegbar(eintrag),
                     OnChanged = o => Werte.Setze(kennung, o.NumberValue)
                 });
             }

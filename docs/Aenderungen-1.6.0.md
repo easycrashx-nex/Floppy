@@ -28,6 +28,13 @@ Die beiden Unreal-Wurzeln sind für diese Fassung ermittelt; Feldabstände werde
 einem erklärenden Status abgewiesen, bis der Adapter dafür geprüft wurde.
 Der bestehende Mortal-Shell-Adapter behält sein eigenes Property-Layout.
 
+Der Paketbau verwendet inzwischen eine aktualisierte Stonewards-Fassung, in der
+`ProjectileBonus` und `BounceArrowCount` fehlen. Die beiden bisherigen Optionen
+prüfen diese exakten Werte nun optional und bleiben bei fehlenden Werten gesperrt.
+Ähnlich benannte Chancenwerte werden nicht als Ersatz verwendet. Vorhandene
+Werte bleiben auf älteren Fassungen nutzbar. Diese Kompatibilitätsanpassung wurde
+gegen die aktuellen Assemblies gebaut; ein Stonewards-Spieltest erfolgte nicht.
+
 ## Prüfung
 
 20 native Fixture-Prüfungen decken die erfolgreiche Auffüllung, unveränderte
