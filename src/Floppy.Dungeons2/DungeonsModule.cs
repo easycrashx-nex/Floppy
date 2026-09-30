@@ -24,6 +24,7 @@ public sealed class DungeonsModule : IGameModule, IDisposable
     private readonly Dictionary<string, CheatOption> _features = new();
     private readonly Dictionary<string, CheatOption> _resources = new();
     private readonly Dictionary<string, CheatOption> _resourceInfo = new();
+    private readonly Dictionary<string, (CheatOption Option, string Target, float Scale)> _info = new();
     public string ProductName => "MinecraftDungeons2";
     public string DisplayName => "Minecraft Dungeons II";
     public int ProcessId => _memory.Pid;
@@ -94,15 +95,13 @@ public sealed class DungeonsModule : IGameModule, IDisposable
         var summary = categories[0];
         var ammunition = new CheatOption { Id = "ammo.loaded", Label = "Geladene Munition %", Kind = OptionKind.Info,
             TextValue = "–", Description = "Geladene Schüsse werden getrennt von der Munitionsreserve verwaltet. Die Regler unter Kampf beschleunigen das normale Nachladen." };
-        ammunition.OnChanged = changed => changed.TextValue = _session?.Ready == true &&
-            _session.Values.TryGetValue("ATR_RangedAttack.RangedAttackCurrentAmmoPercentage", out var ammo)
-            ? $"{ammo.Current * 100:0.#} %" : "–";
+        _info[ammunition.Id] = (ammunition, "ATR_RangedAttack.RangedAttackCurrentAmmoPercentage", 100);
         Category("Kampf").Add(ammunition);
         foreach (var row in new[] { ("progress.level", "Level", "ATR_XP.Level"), ("progress.xp.current", "Erfahrung", "ATR_XP.XP"),
             ("progress.xp.next", "Nächstes Level bei", "ATR_XP.XPForNextLevel"), ("currency.emeralds", "Smaragde", "ATR_Currency.Emeralds") })
         {
             var info = new CheatOption { Id = row.Item1, Label = row.Item2, Kind = OptionKind.Info, TextValue = "–" };
-            info.OnChanged = changed => changed.TextValue = _session?.Ready == true && _session.Values.TryGetValue(row.Item3, out var value) ? $"{value.Current:0.##}" : "–";
+            _info[info.Id] = (info, row.Item3, 1);
             summary.Add(info);
         }
         foreach (var currency in new[] { ("emerald", "Smaragde", "ATR_Currency.Emeralds", "ATR_Currency.EmeraldsMax", 9999f),
@@ -171,6 +170,9 @@ public sealed class DungeonsModule : IGameModule, IDisposable
             _health.TextValue = ready ? $"{_session.Health:0.##} / {_session.Maximum:0.##}" : "–";
         }
         else _health.TextValue = "–";
+        foreach (var row in _info.Values)
+            row.Option.TextValue = _session?.Ready == true && _session.Values.TryGetValue(row.Target, out var value)
+                ? $"{value.Current * row.Scale:0.##}" + (row.Scale == 100 ? " %" : "") : "–";
         _state.TextValue = _status;
     }
 

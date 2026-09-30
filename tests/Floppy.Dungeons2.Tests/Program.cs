@@ -21,9 +21,14 @@ if (args.Contains("--probe-host"))
         await Task.Delay(1500);
         await writer.WriteLineAsync("{\"cmd\":\"schema\"}");
         var response = await reader.ReadLineAsync().WaitAsync(TimeSpan.FromSeconds(8));
-        Console.WriteLine(response);
         using var json = JsonDocument.Parse(response!);
-        return json.RootElement.GetProperty("ready").GetBoolean() ? 0 : 1;
+        var root = json.RootElement;
+        var values = root.GetProperty("values");
+        var info = new[] { "progress.level", "progress.xp.current", "progress.xp.next", "currency.emeralds", "ammo.loaded" }
+            .ToDictionary(id => id, id => values.GetProperty(id).GetProperty("text").GetString());
+        bool ready = root.GetProperty("ready").GetBoolean();
+        Console.WriteLine(JsonSerializer.Serialize(new { ready, game = root.GetProperty("game").GetString(), info }));
+        return ready && info.Values.All(text => !string.IsNullOrEmpty(text) && text != "–") ? 0 : 1;
     }
     finally { while (!await Host.StoppeAsync()) { } }
 }
