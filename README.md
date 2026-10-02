@@ -1,10 +1,14 @@
-# Floppy 1.7.2
+# Floppy 1.7.3
 
 Floppy ist ein modulares Windows-Modmenü mit Desktop-App und externem Overlay.
 Die Module definieren ihre Optionen einmal; Desktop und Overlay verwenden dieselbe Oberfläche.
 
 **[Aktuelle Downloads](https://github.com/easycrashx-nex/Floppy/releases/latest)** ·
 **[Alle Versionen](https://github.com/easycrashx-nex/Floppy/releases)**
+
+Version 1.7.3 unterstützt zusätzlich den aktualisierten Minecraft-Dungeons-II-
+Steam-Build **25647713**. Floppy wählt die passenden geprüften Speicherwurzeln
+anhand der Spiel-EXE aus. [Änderungen 1.7.3](docs/Aenderungen-1.7.3.md).
 
 Version 1.7.2 erkennt serververwaltete Minecraft-Dungeons-II-Figuren. In diesen
 Sitzungen bleiben Anzeigen verfügbar; lokale Spieländerungen werden als nicht
@@ -76,7 +80,7 @@ ist keine Installation oder Reparatur im Spielordner nötig.
 | Project P.I.T.T. | Godot 4, PCK-Format 4 | App ergänzt das Backend-Skript und sichert das vorherige Paket |
 | Mortal Shell II | Externer Unreal-Adapter | Dienst in der Desktop-App |
 | Unrailed! 2 | Entwicklerschnittstelle | Dienst in der Desktop-App |
-| Minecraft Dungeons II | Externer Unreal-Adapter, Prototyp | Dienst in der Desktop-App; Steam-Build 25041023 |
+| Minecraft Dungeons II | Externer Unreal-Adapter, Prototyp | Dienst in der Desktop-App; Steam-Builds 25041023 / 25647713 |
 
 Die Unterstützung einzelner Funktionen hängt von der jeweiligen Spielversion und dem Spielzustand ab.
 Ein erfolgreicher Build bestätigt keine Funktion im laufenden Spiel.
@@ -86,7 +90,7 @@ Ein erfolgreicher Build bestätigt keine Funktion im laufenden Spiel.
 Floppy benötigt **Windows x64**. Für die vollständigen Release-Ausgaben ist keine
 separate .NET-Installation erforderlich. Zwei Varianten stehen zur Verfügung:
 
-- **Einzelne Portable-EXE:** `Floppy-1.7.2-Portable.exe` speichern und starten. Diese eine
+- **Einzelne Portable-EXE:** `Floppy-1.7.3-Portable.exe` speichern und starten. Diese eine
   Datei kann allein weitergegeben werden. Sie enthält die .NET-Laufzeit, alle mitgelieferten
   Loader, Module und Bilder. Beim ersten Start entpackt sie ihre Dateien automatisch in
   einen eigenen Bundlecache; der erste Start kann deshalb etwas länger dauern.

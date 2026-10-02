@@ -67,8 +67,9 @@ if (args.Contains("--probe-features") || args.Contains("--probe-emerald"))
     if (!memoryProbe.Verbinde(DungeonsModule.ProcessName, DungeonsModule.ProcessName + ".exe"))
     { Console.Error.WriteLine(memoryProbe.LetzterFehler); return 1; }
     using var image = File.OpenRead(memoryProbe.Programmpfad);
-    if (Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(image)) != "7C83AFBF0AD34A40B853CDB25A22FFFB605D08E2A1E2D431974D7C7C1EE0BA54") return 2;
-    var live = new Session(memoryProbe, 0xBEA8BF0, 0xBDC5040);
+    var build = SupportedBuilds.Find(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(image)));
+    if (build == null) return 2;
+    var live = new Session(memoryProbe, build.Objects, build.Names);
     if (!live.Refresh()) { Console.Error.WriteLine(live.Status); return 1; }
     try
     {
@@ -100,7 +101,7 @@ if (args.Contains("--probe-features") || args.Contains("--probe-emerald"))
             if (changed && restored && same) passed++;
             results.Add(new { feature.Id, found, changed, restored, same, before = before?.Current, after = after?.Current, message });
         }
-        Console.WriteLine(JsonSerializer.Serialize(new { passed, total = FeatureCatalog.All.Count, results }, new JsonSerializerOptions { WriteIndented = true }));
+        Console.WriteLine(JsonSerializer.Serialize(new { build = build.SteamBuild, passed, total = FeatureCatalog.All.Count, results }, new JsonSerializerOptions { WriteIndented = true }));
         return passed == FeatureCatalog.All.Count ? 0 : 1;
     }
     finally { live.RestoreAll(out _); }
@@ -108,6 +109,13 @@ if (args.Contains("--probe-features") || args.Contains("--probe-emerald"))
 
 int checks = 0;
 void Check(bool value, string message) { checks++; if (!value) throw new Exception(message); }
+Check(SupportedBuilds.Find("7C83AFBF0AD34A40B853CDB25A22FFFB605D08E2A1E2D431974D7C7C1EE0BA54") is
+    { SteamBuild: "25041023", Objects: 0xBEA8BF0, Names: 0xBDC5040 }, "previous build retains its verified roots");
+Check(SupportedBuilds.Find("231147bd0c655a4ae73f90873675d42917f2bfb3a9ee164fc64f217d6d6bd4ef") is
+    { SteamBuild: "25647713", Objects: 0xBF35A70, Names: 0xBE51EC0 }, "updated build selects its verified roots");
+Check(SupportedBuilds.Find(new string('0', 64)) == null && SupportedBuilds.Find("") == null &&
+    SupportedBuilds.Find("25647713") == null, "unknown images and build labels cannot bypass exact image verification");
+Check(SupportedBuilds.All.Select(b => b.Hash).Distinct().Count() == SupportedBuilds.All.Count, "build image identities unique");
 using var fixture = new Fixture();
 using var memory = new Speicher();
 using var self = Process.GetCurrentProcess();

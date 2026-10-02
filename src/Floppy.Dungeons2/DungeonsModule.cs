@@ -12,7 +12,6 @@ namespace Floppy.Dungeons2;
 public sealed class DungeonsModule : IGameModule, IDisposable
 {
     public const string ProcessName = "Dungeons-Win64-Shipping";
-    private const string SupportedHash = "7C83AFBF0AD34A40B853CDB25A22FFFB605D08E2A1E2D431974D7C7C1EE0BA54";
     private readonly Speicher _memory = new();
     private Session? _session;
     private long _nextAttach;
@@ -21,6 +20,8 @@ public sealed class DungeonsModule : IGameModule, IDisposable
         Description = "Füllt deine aktuellen Lebenspunkte regelmäßig auf. Bei tödlichen Treffern ist das kein garantierter Schutz." };
     private readonly CheatOption _health = new() { Id = "health.current", Label = "Lebenspunkte", Kind = OptionKind.Info, TextValue = "–" };
     private readonly CheatOption _state = new() { Id = "connection.state", Label = "Verbindung", Kind = OptionKind.Info };
+    private readonly CheatOption _build = new() { Id = "connection.build", Label = "Adapter", Kind = OptionKind.Info,
+        TextValue = "Steam-Builds 25041023 / 25647713", Description = "Die passende geprüfte Fassung wird anhand der Spiel-EXE ausgewählt." };
     private readonly Dictionary<string, CheatOption> _features = new();
     private readonly Dictionary<string, CheatOption> _resources = new();
     private readonly Dictionary<string, CheatOption> _resourceInfo = new();
@@ -41,8 +42,7 @@ public sealed class DungeonsModule : IGameModule, IDisposable
         heal.OnInvoke = option => { if (Heal(out string message)) option.Message = message; else option.Fail(message); };
         var categories = new List<CheatCategory>
         {
-            new CheatCategory("Übersicht").Add(_state).Add(new CheatOption { Id = "connection.build", Label = "Adapter", Kind = OptionKind.Info,
-                TextValue = "Steam-Build 25041023", Description = "Andere Spielversionen werden erst nach Prüfung freigeschaltet." }),
+            new CheatCategory("Übersicht").Add(_state).Add(_build),
             new CheatCategory("Überleben").Add(_health).Add(heal).Add(_keep)
         };
         var mode = new CheatOption { Id = "connection.mode", Label = "Unterstützung in dieser Sitzung", Kind = OptionKind.Info,
@@ -194,13 +194,16 @@ public sealed class DungeonsModule : IGameModule, IDisposable
         try
         {
             using var file = new FileStream(_memory.Programmpfad, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-            if (Convert.ToHexString(SHA256.HashData(file)) != SupportedHash)
+            var build = SupportedBuilds.Find(Convert.ToHexString(SHA256.HashData(file)));
+            if (build == null)
             {
-                _status = "Diese Spielversion ist noch nicht geprüft. Adapter für Steam-Build 25041023 erforderlich.";
+                _build.TextValue = "Spiel-EXE noch nicht geprüft";
+                _status = "Spielversion noch nicht unterstützt. Floppy unterstützt Steam-Builds 25041023 und 25647713; auf Updates prüfen.";
                 _memory.Trenne();
                 return;
             }
-            _session = new Session(_memory, 0xBEA8BF0, 0xBDC5040);
+            _build.TextValue = "Steam-Build " + build.SteamBuild;
+            _session = new Session(_memory, build.Objects, build.Names);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         { _status = "Spielversion konnte nicht geprüft werden: " + ex.Message; _memory.Trenne(); }
