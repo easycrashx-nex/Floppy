@@ -8,6 +8,8 @@
     <ProjectReference Include="../Floppy.Model/Floppy.Model.csproj" Private="false" />
     <ProjectReference Include="../Floppy.Unity.IL2CPP/Floppy.Unity.IL2CPP.csproj" Private="false" />
     <Reference Include="FS.Build" HintPath="$(DumbWaysInterop)/FS.Build.dll" Private="false" />
+    <Reference Include="PlaySide.Utilities" HintPath="$(DumbWaysInterop)/PlaySide.Utilities.dll" Private="false" />
+    <Reference Include="com.playside.platform" HintPath="$(DumbWaysInterop)/com.playside.platform.dll" Private="false" />
     <Reference Include="Fusion.Runtime" HintPath="$(DumbWaysInterop)/Fusion.Runtime.dll" Private="false" />
     <Reference Include="Fusion.Unity" HintPath="$(DumbWaysInterop)/Fusion.Unity.dll" Private="false" />
     <Reference Include="Il2Cppmscorlib" HintPath="$(DumbWaysInterop)/Il2Cppmscorlib.dll" Private="false" />

@@ -7,5 +7,6 @@
   <ItemGroup>
     <ProjectReference Include="../../src/Floppy.Model/Floppy.Model.csproj" />
     <Compile Include="../../src/Floppy.DumbWays/CheckpointStore.cs" Link="CheckpointStore.cs" />
+    <Compile Include="../../src/Floppy.DumbWays/SaveBackup.cs" Link="SaveBackup.cs" />
   </ItemGroup>
 </Project>

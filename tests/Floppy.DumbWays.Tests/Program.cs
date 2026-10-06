@@ -64,7 +64,25 @@ try
     }
     Check(sizeRejected, "UTF-8 byte limit enforced before writing unreadable data");
     Check(new CheckpointStore(largePath).LoadError == "", "size rejection preserves loadable previous data");
-    Console.WriteLine($"PASS: {checks} checkpoint checks; temporary files only, no game accessed.");
+    string saves = Path.Combine(root, "saves"), backups = Path.Combine(root, "backups");
+    Directory.CreateDirectory(Path.Combine(saves, "Steam"));
+    byte[] saveBytes = { 0, 1, 255, 42, 17 };
+    File.WriteAllBytes(Path.Combine(saves, "Steam", "Charlie.data"), saveBytes);
+    File.WriteAllText(Path.Combine(saves, "Player.log"), "not a save");
+    string backup = SaveBackup.Create(saves, backups);
+    Check(File.ReadAllBytes(Path.Combine(backup, "Steam", "Charlie.data")).SequenceEqual(saveBytes), "save backup is byte exact");
+    Check(File.ReadAllBytes(Path.Combine(saves, "Steam", "Charlie.data")).SequenceEqual(saveBytes), "backup preserves source");
+    Check(File.Exists(Path.Combine(backup, "Sicherung.json")) && !File.Exists(Path.Combine(backup, "Player.log")), "manifest exists and logs excluded");
+    Check(SaveBackup.Create(saves, backups) != backup, "backups never overwrite each other");
+    Reject(() => SaveBackup.Create(saves, Path.Combine(saves, "nested")), "recursive backup accepted");
+    string emptySaves = Path.Combine(root, "empty");
+    Directory.CreateDirectory(emptySaves);
+    Reject(() => SaveBackup.Create(emptySaves, backups), "empty backup accepted");
+    using (var locked = new FileStream(Path.Combine(saves, "Steam", "Charlie.data"), FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+        Reject(() => SaveBackup.Create(saves, backups), "locked save accepted");
+    for (int i = 0; i < 257; i++) File.WriteAllBytes(Path.Combine(emptySaves, i + ".data"), Array.Empty<byte>());
+    Reject(() => SaveBackup.Create(emptySaves, backups), "unbounded file count accepted");
+    Console.WriteLine($"PASS: {checks} checkpoint and backup checks; temporary files only, no game accessed.");
     return 0;
 }
 catch (Exception error) { Console.Error.WriteLine(error); return 1; }

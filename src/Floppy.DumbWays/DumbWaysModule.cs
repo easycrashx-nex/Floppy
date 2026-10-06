@@ -112,6 +112,7 @@ public sealed partial class DumbWaysModule : IGameModule
         _nextInfo = Time.unscaledTime + .2f;
         UpdateInfo();
         TickExtras();
+        TickUnlocks();
     }
 
     private void RestorePlayer()
@@ -245,6 +246,7 @@ public sealed partial class DumbWaysModule : IGameModule
         };
         categories.Add(CheckpointsCategory());
         categories.Add(SpawnCategory());
+        categories.Add(UnlockCategory());
         return categories;
     }
 
