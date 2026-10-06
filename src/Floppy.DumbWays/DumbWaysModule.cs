@@ -9,7 +9,7 @@ using UnityEngine;
 namespace Floppy.DumbWays;
 
 /// <summary>Controls the game's local player through its own IL2CPP bindings.</summary>
-public sealed class DumbWaysModule : IGameModule
+public sealed partial class DumbWaysModule : IGameModule
 {
     public string ProductName => "Dumb Ways to Build";
     public string DisplayName => ProductName;
@@ -33,6 +33,7 @@ public sealed class DumbWaysModule : IGameModule
             Matches(Path.Combine(Application.dataPath, "il2cpp_data/Metadata/global-metadata.dat"),
             "E3C949B484F4FFBB6058A0C955C8A976062312C9A2A8CBA400F75C56358E9998");
         if (!_supported) Floppy.Core.Log.Warning("Dumb Ways to Build: ungeprüfte Spielversion; Änderungen gesperrt.");
+        InitializeExtras();
     }
 
     private static bool Matches(string path, string hash)
@@ -95,7 +96,7 @@ public sealed class DumbWaysModule : IGameModule
             {
                 if (_god && !_godApplied) { _originalGod = (health.GodModeLocks & GodModeLock.Debug) != 0; _godApplied = true; }
                 if (_god && (health.GodModeLocks & GodModeLock.Debug) == 0) health.GodModeLocks |= GodModeLock.Debug;
-                else if (_godApplied) { RestoreGod(health); _godApplied = false; }
+                else if (!_god && _godApplied) { RestoreGod(health); _godApplied = false; }
             }
             if (_noClip && !_clipApplied) { _originalNoClip = _player.DebugNoClip; _clipApplied = true; _player.SetDebugNoClip(true); }
             else if (!_noClip && _clipApplied) { _player.SetDebugNoClip(_originalNoClip); _clipApplied = false; }
@@ -110,6 +111,7 @@ public sealed class DumbWaysModule : IGameModule
         if (Time.unscaledTime < _nextInfo) return;
         _nextInfo = Time.unscaledTime + .2f;
         UpdateInfo();
+        TickExtras();
     }
 
     private void RestorePlayer()
@@ -189,7 +191,7 @@ public sealed class DumbWaysModule : IGameModule
         _toolInfo = Info("tool.info", "Ausgerüstetes Werkzeug");
         _tokensInfo = Info("tokens.info", "Wiederbelebungsmarken");
         _amount = new CheatOption { Id = "tokens.amount", Label = "Anzahl", Kind = OptionKind.Number, Min = 1, Max = 999, Step = 1, NumberValue = 10 };
-        return new List<CheatCategory>
+        var categories = new List<CheatCategory>
         {
             new CheatCategory("Überleben").Add(_healthInfo)
                 .Add(Toggle("health.god", "Unverwundbar", "Verwendet den Schutz des Spiels für deine Figur.", value => _god = value))
@@ -241,6 +243,9 @@ public sealed class DumbWaysModule : IGameModule
                     })
                 })
         };
+        categories.Add(CheckpointsCategory());
+        categories.Add(SpawnCategory());
+        return categories;
     }
 
     private static CheatOption Info(string id, string label) => new() { Id = id, Label = label, Kind = OptionKind.Info, TextValue = "–" };
@@ -264,6 +269,6 @@ public sealed class DumbWaysModule : IGameModule
     private void Execute(CheatOption option, Func<string> action)
     {
         try { option.Message = action(); UpdateInfo(); }
-        catch (Exception error) { option.Fail(error.Message); }
+        catch (Exception error) { Floppy.Core.Log.Warning(option.Id + ": " + error); option.Fail(error.Message); }
     }
 }

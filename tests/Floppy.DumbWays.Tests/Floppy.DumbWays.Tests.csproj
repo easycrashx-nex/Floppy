@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Floppy.Model/Floppy.Model.csproj" />
+    <Compile Include="../../src/Floppy.DumbWays/CheckpointStore.cs" Link="CheckpointStore.cs" />
+  </ItemGroup>
+</Project>

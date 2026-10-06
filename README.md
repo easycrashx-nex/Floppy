@@ -1,10 +1,15 @@
-# Floppy 1.8.0
+# Floppy 1.8.1
 
 Floppy ist ein modulares Windows-Modmenü mit Desktop-App und externem Overlay.
 Die Module definieren ihre Optionen einmal; Desktop und Overlay verwenden dieselbe Oberfläche.
 
 **[Aktuelle Downloads](https://github.com/easycrashx-nex/Floppy/releases/latest)** ·
 **[Alle Versionen](https://github.com/easycrashx-nex/Floppy/releases)**
+
+Version 1.8.1 ergänzt für **Dumb Ways to Build** benannte, dauerhaft gespeicherte
+Checkpoints mit Teleport und einen Gegenstandsspawner mit Kategorien und Mengenwahl.
+Außerdem bleibt die Unverwundbarkeit jetzt durchgehend aktiv.
+[Änderungen und Testumfang 1.8.1](docs/Aenderungen-1.8.1.md).
 
 Version 1.8.0 ergänzt **Dumb Ways to Build** mit zwölf Funktionen für Überleben,
 Bewegung, Werkzeughaltbarkeit und Wiederbelebungsmarken. Unterstützt wird Version
@@ -95,7 +100,7 @@ Ein erfolgreicher Build bestätigt keine Funktion im laufenden Spiel.
 Floppy benötigt **Windows x64**. Für die vollständigen Release-Ausgaben ist keine
 separate .NET-Installation erforderlich. Zwei Varianten stehen zur Verfügung:
 
-- **Einzelne Portable-EXE:** `Floppy-1.8.0-Portable.exe` speichern und starten. Diese eine
+- **Einzelne Portable-EXE:** `Floppy-1.8.1-Portable.exe` speichern und starten. Diese eine
   Datei kann allein weitergegeben werden. Sie enthält die .NET-Laufzeit, alle mitgelieferten
   Loader, Module und Bilder. Beim ersten Start entpackt sie ihre Dateien automatisch in
   einen eigenen Bundlecache; der erste Start kann deshalb etwas länger dauern.
