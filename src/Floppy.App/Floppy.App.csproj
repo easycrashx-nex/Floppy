@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
     <AssemblyName>Floppy</AssemblyName>
-    <Version>1.7.3</Version>
+    <Version>1.8.0</Version>
     <RootNamespace>Floppy.App</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>floppy.ico</ApplicationIcon>
@@ -30,6 +30,8 @@
     <ProjectReference Include="..\Floppy.Unity.IL2CPP\Floppy.Unity.IL2CPP.csproj" Condition="'$(BuildGameModules)' == 'true'"
                       ReferenceOutputAssembly="false" Private="false" />
     <ProjectReference Include="..\Floppy.Oddcore\Floppy.Oddcore.csproj" Condition="'$(BuildGameModules)' == 'true'"
+                      ReferenceOutputAssembly="false" Private="false" />
+    <ProjectReference Include="..\Floppy.DumbWays\Floppy.DumbWays.csproj" Condition="'$(BuildGameModules)' == 'true'"
                       ReferenceOutputAssembly="false" Private="false" />
   </ItemGroup>
 
@@ -56,7 +58,7 @@
         <TargetPath>runtime\mono\plugins\%(Filename)%(Extension)</TargetPath>
       </_FloppyRuntime>
       <_FloppyRuntime Include="@(_FloppyProjectOutputs)"
-          Condition="'%(Filename)' == 'Floppy.Model' or '%(Filename)' == 'Floppy.Unity.IL2CPP' or '%(Filename)' == 'Floppy.Oddcore'">
+          Condition="'%(Filename)' == 'Floppy.Model' or '%(Filename)' == 'Floppy.Unity.IL2CPP' or '%(Filename)' == 'Floppy.Oddcore' or '%(Filename)' == 'Floppy.DumbWays'">
         <TargetPath>runtime\il2cpp\plugins\%(Filename)%(Extension)</TargetPath>
       </_FloppyRuntime>
       <ContentWithTargetPath Include="@(_FloppyRuntime)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />

@@ -15,7 +15,8 @@ param(
     [string]$ArtifactsPath,
     [string]$GameDir,
     [string]$StonewardsDir,
-    [string]$OddcoreDir
+    [string]$OddcoreDir,
+    [string]$DumbWaysDir
 )
 $ErrorActionPreference = 'Stop'
 $projectRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
@@ -116,6 +117,7 @@ try {
     if ($GameDir) { $properties += "-p:GameDir=$GameDir" }
     if ($StonewardsDir) { $properties += "-p:StonewardsDir=$StonewardsDir" }
     if ($OddcoreDir) { $properties += "-p:OddcoreDir=$OddcoreDir" }
+    if ($DumbWaysDir) { $properties += "-p:DumbWaysDir=$DumbWaysDir" }
     $publish = @('publish', $appProject, '-c', 'Release', '-r', 'win-x64', '--self-contained', 'true')
     Write-Host "Building complete folder release $version..."
     Invoke-Dotnet ($publish + $properties + @('-p:PublishSingleFile=false', '--artifacts-path', (Join-Path $stage 'build-folder'), '-o', $package))

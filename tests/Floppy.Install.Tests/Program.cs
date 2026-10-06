@@ -112,6 +112,22 @@ try
         Assert(File.Exists(Path.Combine(dir, "BepInEx/plugins/Floppy/Floppy.Oddcore.dll")), "ODDCORE module absent");
         Assert(Installer.Wiederherstellen(dir, out message), message);
     });
+    Run("Dumb Ways installs only its module and restores existing files", () =>
+    {
+        string dir = GameDir("dumb-ways");
+        Directory.CreateDirectory(Path.Combine(dir, "Dumb Ways to Build_Data"));
+        File.WriteAllText(Path.Combine(dir, "Dumb Ways to Build.exe"), "fixture, never executed");
+        string module = Path.Combine(dir, "BepInEx/plugins/Floppy/Floppy.DumbWays.dll");
+        Directory.CreateDirectory(Path.GetDirectoryName(module)!);
+        File.WriteAllText(module, "previous plugin");
+        Assert(Installer.Einrichten(dir, out string message), message);
+        Assert(Installer.Bereit(dir, "Dumb Ways to Build"), "Dumb Ways not ready");
+        Assert(File.Exists(module), "Dumb Ways module absent");
+        Assert(!File.Exists(Path.Combine(dir, "BepInEx/plugins/Floppy/Floppy.Oddcore.dll")), "unrelated game module installed");
+        Assert(Installer.Wiederherstellen(dir, out message), message);
+        Assert(File.ReadAllText(module) == "previous plugin" && !File.Exists(Path.Combine(dir, "winhttp.dll")), "Dumb Ways original files not restored");
+        Assert(Directory.Exists(Path.Combine(dir, "Dumb Ways to Build_Data")), "game data removed");
+    });
     Run("Pitt package preserves data/version, installs idempotently and restores byte-for-byte", () =>
     {
         string dir = InstallDir("pitt");
@@ -241,7 +257,7 @@ try
         {
             foreach (string file in new[] { "Floppy.exe", "runtime/mono/plugins/Floppy.Model.dll", "runtime/mono/plugins/Floppy.Unity.Mono.dll",
                 "runtime/mono/plugins/Floppy.HowToFish.dll", "runtime/mono/plugins/Floppy.Stonewards.dll", "runtime/il2cpp/plugins/Floppy.Model.dll",
-                "runtime/il2cpp/plugins/Floppy.Unity.IL2CPP.dll", "runtime/il2cpp/plugins/Floppy.Oddcore.dll", "runtime/pitt/floppy.gd" })
+                "runtime/il2cpp/plugins/Floppy.Unity.IL2CPP.dll", "runtime/il2cpp/plugins/Floppy.Oddcore.dll", "runtime/il2cpp/plugins/Floppy.DumbWays.dll", "runtime/pitt/floppy.gd" })
                 Assert(File.Exists(Path.Combine(args[0], file)), "published file missing: " + file);
             Assert(!File.Exists(Path.Combine(args[0], "runtime/pitt/floppy_overlay.gd")), "obsolete Pitt menu is still published");
             foreach (string engine in new[] { "mono", "il2cpp" })
@@ -268,7 +284,7 @@ void MakeRuntime()
     {
         string dir = Path.Combine(runtime, engine);
         Directory.CreateDirectory(Path.Combine(dir, "plugins"));
-        foreach (string name in new[] { "Floppy.Model", "Floppy.Unity.Mono", "Floppy.HowToFish", "Floppy.Stonewards", "Floppy.Unity.IL2CPP", "Floppy.Oddcore" })
+        foreach (string name in new[] { "Floppy.Model", "Floppy.Unity.Mono", "Floppy.HowToFish", "Floppy.Stonewards", "Floppy.Unity.IL2CPP", "Floppy.Oddcore", "Floppy.DumbWays" })
             File.WriteAllText(Path.Combine(dir, "plugins", name + ".dll"), "new-" + name);
         string loader = GameDir("loader-" + engine);
         MakeLoader(loader, engine == "mono" ? "Mono" : "IL2CPP");

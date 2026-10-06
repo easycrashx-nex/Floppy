@@ -1,10 +1,14 @@
-# Floppy 1.7.3
+# Floppy 1.8.0
 
 Floppy ist ein modulares Windows-Modmenü mit Desktop-App und externem Overlay.
 Die Module definieren ihre Optionen einmal; Desktop und Overlay verwenden dieselbe Oberfläche.
 
 **[Aktuelle Downloads](https://github.com/easycrashx-nex/Floppy/releases/latest)** ·
 **[Alle Versionen](https://github.com/easycrashx-nex/Floppy/releases)**
+
+Version 1.8.0 ergänzt **Dumb Ways to Build** mit zwölf Funktionen für Überleben,
+Bewegung, Werkzeughaltbarkeit und Wiederbelebungsmarken. Unterstützt wird Version
+**2.1.89 / Steam-Build 25644049**. [Änderungen und Testumfang 1.8.0](docs/Aenderungen-1.8.0.md).
 
 Version 1.7.3 unterstützt zusätzlich den aktualisierten Minecraft-Dungeons-II-
 Steam-Build **25647713**. Floppy wählt die passenden geprüften Speicherwurzeln
@@ -77,6 +81,7 @@ ist keine Installation oder Reparatur im Spielordner nötig.
 | How to Fish | Unity Mono / BepInEx | App installiert Loader und passendes Modul |
 | Stonewards | Unity Mono / BepInEx | App installiert Loader und passendes Modul |
 | ODDCORE | Unity IL2CPP / BepInEx | App installiert Loader und passendes Modul; erster Start erzeugt Interop-Dateien |
+| Dumb Ways to Build | Unity IL2CPP / BepInEx | App installiert Loader und Modul; Version 2.1.89 / Steam-Build 25644049 |
 | Project P.I.T.T. | Godot 4, PCK-Format 4 | App ergänzt das Backend-Skript und sichert das vorherige Paket |
 | Mortal Shell II | Externer Unreal-Adapter | Dienst in der Desktop-App |
 | Unrailed! 2 | Entwicklerschnittstelle | Dienst in der Desktop-App |
@@ -90,7 +95,7 @@ Ein erfolgreicher Build bestätigt keine Funktion im laufenden Spiel.
 Floppy benötigt **Windows x64**. Für die vollständigen Release-Ausgaben ist keine
 separate .NET-Installation erforderlich. Zwei Varianten stehen zur Verfügung:
 
-- **Einzelne Portable-EXE:** `Floppy-1.7.3-Portable.exe` speichern und starten. Diese eine
+- **Einzelne Portable-EXE:** `Floppy-1.8.0-Portable.exe` speichern und starten. Diese eine
   Datei kann allein weitergegeben werden. Sie enthält die .NET-Laufzeit, alle mitgelieferten
   Loader, Module und Bilder. Beim ersten Start entpackt sie ihre Dateien automatisch in
   einen eigenen Bundlecache; der erste Start kann deshalb etwas länger dauern.
@@ -182,8 +187,10 @@ Die externen Adapter für Mortal Shell II und Unrailed! 2 verwenden den Windows-
 
 - .NET SDK 8 oder neuer, Windows.
 - Lokale Spiel-DLLs für How to Fish und Stonewards.
-- Für ODDCORE die vom passenden BepInEx erzeugten Interop-DLLs.
-- BepInEx-Archive liegen in `vendor`; die Installation selbst braucht keinen Download.
+- Für ODDCORE und Dumb Ways to Build die vom passenden BepInEx erzeugten Interop-DLLs.
+- BepInEx-Archive liegen in `vendor`; Loader und Plugins sind im Paket enthalten.
+  Beim ersten IL2CPP-Spielstart lädt BepInEx passende Unity-Basisbibliotheken herunter
+  und erzeugt die Interop-Dateien. Dieser erste Start benötigt Internet und kann mehrere Minuten dauern.
 
 Lokale Pfade in einer nicht versionierten `Directory.Build.local.props` setzen:
 
@@ -193,12 +200,13 @@ Lokale Pfade in einer nicht versionierten `Directory.Build.local.props` setzen:
     <GameDir>D:\SteamLibrary\steamapps\common\How to Fish\How to Fish</GameDir>
     <StonewardsDir>D:\SteamLibrary\steamapps\common\Stonewards</StonewardsDir>
     <OddcoreDir>D:\SteamLibrary\steamapps\common\ODDCORE</OddcoreDir>
+    <DumbWaysDir>D:\SteamLibrary\steamapps\common\Dumb Ways to Build</DumbWaysDir>
   </PropertyGroup>
 </Project>
 ```
 
 Alternativ funktionieren MSBuild-Parameter wie `-p:GameDir="D:\..."`.
-`GameManaged`, `StonewardsManaged` und `OddcoreInterop` können bei abweichender Struktur
+`GameManaged`, `StonewardsManaged`, `OddcoreInterop` und `DumbWaysInterop` können bei abweichender Struktur
 direkt gesetzt werden. Fehlende Spielreferenzen ergeben eine gezielte Build-Fehlermeldung.
 
 ```powershell

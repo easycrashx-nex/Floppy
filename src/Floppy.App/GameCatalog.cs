@@ -40,7 +40,8 @@ public static class GameCatalog
         new() { Name = "Stonewards",  AppId = "4502710", ProductName = "Stonewards" },
         new() { Name = "Mortal Shell II", AppId = "2584270", ProductName = "MortalShell2" },
         new() { Name = "Unrailed! 2", AppId = "2211170", ProductName = "Unrailed2" },
-        new() { Name = "Minecraft Dungeons II", AppId = "1912410", ProductName = "MinecraftDungeons2" }
+        new() { Name = "Minecraft Dungeons II", AppId = "1912410", ProductName = "MinecraftDungeons2" },
+        new() { Name = "Dumb Ways to Build", AppId = "4412320", ProductName = "Dumb Ways to Build" }
     };
 
     public static string CatalogPath =>

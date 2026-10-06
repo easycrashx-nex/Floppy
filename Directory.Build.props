@@ -9,6 +9,7 @@
     <StonewardsDir Condition="'$(StonewardsDir)' == ''">D:\SteamLibrary\steamapps\common\Stonewards</StonewardsDir>
 
     <OddcoreDir Condition="'$(OddcoreDir)' == ''">D:\SteamLibrary\steamapps\common\ODDCORE</OddcoreDir>
+    <DumbWaysDir Condition="'$(DumbWaysDir)' == ''">D:\SteamLibrary\steamapps\common\Dumb Ways to Build</DumbWaysDir>
     <BuildGameModules Condition="'$(BuildGameModules)' == ''">true</BuildGameModules>
 
     <TargetFramework>netstandard2.1</TargetFramework>
@@ -27,8 +28,11 @@
     <GameManaged Condition="'$(GameManaged)' == ''">$(GameDir)\How to Fish_Data\Managed</GameManaged>
     <StonewardsManaged Condition="'$(StonewardsManaged)' == ''">$(StonewardsDir)\Stonewards_Data\Managed</StonewardsManaged>
     <OddcoreInterop Condition="'$(OddcoreInterop)' == ''">$(OddcoreDir)\BepInEx\interop</OddcoreInterop>
+    <DumbWaysInterop Condition="'$(DumbWaysInterop)' == ''">$(DumbWaysDir)\BepInEx\interop</DumbWaysInterop>
   </PropertyGroup>
   <Target Name="CheckGameReferences" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="'$(MSBuildProjectName)' == 'Floppy.DumbWays' and !Exists('$(DumbWaysInterop)\FS.Build.dll')"
+           Text="Dumb Ways interop missing. Set DumbWaysDir/DumbWaysInterop and generate BepInEx interop before building." />
     <Error Condition="'$(MSBuildProjectName)' == 'Floppy.HowToFish' and !Exists('$(GameManaged)\Assembly-CSharp.dll')"
            Text="How to Fish assemblies missing. Set GameDir or GameManaged in Directory.Build.local.props; use -p:BuildGameModules=false for desktop-only builds." />
     <Error Condition="'$(MSBuildProjectName)' == 'Floppy.Stonewards' and !Exists('$(StonewardsManaged)\Assembly-CSharp.dll')"

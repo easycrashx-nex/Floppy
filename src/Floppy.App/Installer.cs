@@ -51,6 +51,7 @@ public static class Installer
                 "How to Fish" => new(name, "mono", "Floppy.HowToFish.dll"),
                 "Stonewards" => new(name, "mono", "Floppy.Stonewards.dll"),
                 "ODDCORE" => new(name, "il2cpp", "Floppy.Oddcore.dll"),
+                "Dumb Ways to Build" => new(name, "il2cpp", "Floppy.DumbWays.dll"),
                 "Project P.I.T.T." => new(name, "pitt", null),
                 "MortalShell2" or "Unrailed2" or "MinecraftDungeons2" => new(name, "external", null),
                 _ => throw new InvalidOperationException("Für dieses Spiel ist keine Installation definiert.")
@@ -61,6 +62,8 @@ public static class Installer
             return new("Stonewards", "mono", "Floppy.Stonewards.dll");
         if (name == "ODDCORE" || Directory.Exists(Path.Combine(directory, "ODDCORE_Data")))
             return new("ODDCORE", "il2cpp", "Floppy.Oddcore.dll");
+        if (Directory.Exists(Path.Combine(directory, "Dumb Ways to Build_Data")))
+            return new("Dumb Ways to Build", "il2cpp", "Floppy.DumbWays.dll");
         if (name == "Project P.I.T.T." || File.Exists(Path.Combine(directory, "projectpitt.pck")))
             return new("Project P.I.T.T.", "pitt", null);
         if (name is "MortalShell2" or "Unrailed2" or "MinecraftDungeons2") return new(name, "external", null);

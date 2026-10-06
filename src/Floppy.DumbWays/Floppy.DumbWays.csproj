@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <AssemblyName>Floppy.DumbWays</AssemblyName>
+    <RootNamespace>Floppy.DumbWays</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Floppy.Model/Floppy.Model.csproj" Private="false" />
+    <ProjectReference Include="../Floppy.Unity.IL2CPP/Floppy.Unity.IL2CPP.csproj" Private="false" />
+    <Reference Include="FS.Build" HintPath="$(DumbWaysInterop)/FS.Build.dll" Private="false" />
+    <Reference Include="Fusion.Runtime" HintPath="$(DumbWaysInterop)/Fusion.Runtime.dll" Private="false" />
+    <Reference Include="Fusion.Unity" HintPath="$(DumbWaysInterop)/Fusion.Unity.dll" Private="false" />
+    <Reference Include="Il2Cppmscorlib" HintPath="$(DumbWaysInterop)/Il2Cppmscorlib.dll" Private="false" />
+    <Reference Include="Il2CppSystem.Core" HintPath="$(DumbWaysInterop)/Il2CppSystem.Core.dll" Private="false" />
+    <Reference Include="UnityEngine.CoreModule" HintPath="$(DumbWaysInterop)/UnityEngine.CoreModule.dll" Private="false" />
+  </ItemGroup>
+</Project>
